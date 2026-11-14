@@ -1,6 +1,1 @@
 requests
-numpy
-rasterio
-pyproj
-pystac-client
-planetary-computer

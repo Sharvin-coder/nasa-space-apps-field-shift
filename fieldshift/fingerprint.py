@@ -1,7 +1,7 @@
 """Field fingerprint: auto-fill the matching criteria for a location.
 
 Usage:
-    python -m twinfields.fingerprint 42.03 -93.47
+    python -m fieldshift.fingerprint 42.03 -93.47
 
 Every value comes from a live API call. A criterion that could not be
 fetched is returned as None with a reason in "notes" -- never a placeholder.
@@ -137,5 +137,5 @@ def fingerprint(lat: float, lon: float) -> dict:
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        sys.exit("usage: python -m twinfields.fingerprint <lat> <lon>")
+        sys.exit("usage: python -m fieldshift.fingerprint <lat> <lon>")
     print(json.dumps(fingerprint(float(sys.argv[1]), float(sys.argv[2])), indent=2))
