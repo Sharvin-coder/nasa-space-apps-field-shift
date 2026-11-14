@@ -1,9 +1,9 @@
 """Near-twin analysis: do winter-green fields hold up differently in summer?
 
 Usage:
-    python -m twinfields.neartwin            # needs data/cache/pilot_cube.npz
+    python -m twinfields.neartwin <region>   # needs data/cache/<region>_cube.npz
 
-Writes results/neartwin_pilot.json. All numbers are computed from the cube.
+Writes results/neartwin_<region>.json. All numbers are computed from the cube.
 
 Method (one MODIS 250 m pixel = one "field sample")
   1. Eligible pixel-year: the pixel is >= PURITY corn or soy in that year AND
@@ -21,19 +21,20 @@ Method (one MODIS 250 m pixel = one "field sample")
      share a field and are not independent.
 
 Limits: correlation only; 250 m pixels can mix field edges; the flag also
-fires on weeds or early growth; one 20 km box.
+fires on weeds or early growth; one 20 km box per region.
 """
 from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import time
+import warnings
 from pathlib import Path
 
 import numpy as np
 
-CUBE = Path("data/cache/pilot_cube.npz")
-OUT = Path("results/neartwin_pilot.json")
+from twinfields.regions import REGIONS
 
 CONFIG = {
     "seasons": [2015, 2024],
@@ -43,7 +44,6 @@ CONFIG = {
     "summer_window_start_doy": [175, 235],    # composites covering ~25 Jun - 8 Sep
     "green_margin_ndvi": 0.10,
     "min_unflagged_years": 3,
-    "dry_years": [2020, 2021, 2023],          # from the NASA POWER fingerprint
     "block_px": 4,                            # 4 x 4 pixels = ~1 km bootstrap blocks
     "bootstrap_reps": 2000,
     "seed": 0,
@@ -57,8 +57,8 @@ def git_commit() -> str:
         return "unknown"
 
 
-def load():
-    d = np.load(CUBE)
+def load(cube):
+    d = np.load(cube)
     good = (d["reliability"] == 0) | (d["reliability"] == 1)   # drop snow/ice and cloud
     ndvi = np.where(good, d["ndvi"] / 1e4, np.nan)
     evi = np.where(good, d["evi"] / 1e4, np.nan)
@@ -68,9 +68,9 @@ def load():
     return d, ndvi, evi, year, doy0
 
 
-def build_panel(cfg=CONFIG):
+def build_panel(cube, cfg=CONFIG):
     """Per-season arrays (season, row, col): eligible, crop, flag, rel outcomes."""
-    d, ndvi, evi, year, doy0 = load()
+    d, ndvi, evi, year, doy0 = load(cube)
     seasons = np.arange(cfg["seasons"][0], cfg["seasons"][1] + 1)
     cdl_years = list(d["cdl_years"])
     crop_ids = list(cfg["crops"].values())
@@ -89,8 +89,8 @@ def build_panel(cfg=CONFIG):
         ok = d["inside"].copy()
         for j in (i, i - 1):
             ok &= np.isin(d["cdl_major"][j], crop_ids) & (d["cdl_purity"][j] >= cfg["purity_min"])
-        with np.errstate(all="ignore"), np.testing.suppress_warnings() as sup:
-            sup.filter(RuntimeWarning)
+        with np.errstate(all="ignore"), warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)   # all-NaN pixels stay NaN
             spr = np.nanmax(ndvi[(year == season) & (doy0 >= s0) & (doy0 <= s1)], axis=0)
             summer = evi[(year == season) & (doy0 >= p0) & (doy0 <= p1)]
             peak = np.nanmax(summer, axis=0)
@@ -137,10 +137,16 @@ def block_bootstrap(effect, r, c, cfg=CONFIG):
 
 
 def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in REGIONS:
+        sys.exit(f"usage: python -m twinfields.neartwin <{'|'.join(REGIONS)}>")
+    region = sys.argv[1]
+    cube = Path(f"data/cache/{region}_cube.npz")
+    out = Path(f"results/neartwin_{region}.json")
+    config = {**CONFIG, "region": region, **REGIONS[region]}
     t0 = time.time()
-    panel = build_panel()
+    panel = build_panel(cube)
     seasons = panel["seasons"]
-    dry = np.isin(seasons, CONFIG["dry_years"])
+    dry = np.isin(seasons, config["dry_years"])
 
     per_season = []
     for k, season in enumerate(seasons):
@@ -163,9 +169,9 @@ def main():
             for i, s in enumerate(seasons)}
 
     result = {
-        "experiment": "neartwin_pilot",
-        "config": CONFIG,
-        "data": {"cube": str(CUBE), "sources": [
+        "experiment": f"neartwin_{region}",
+        "config": config,
+        "data": {"cube": str(cube), "sources": [
             "NASA MODIS MOD13Q1/MYD13Q1 v6.1 (Planetary Computer mirror)",
             "USDA NASS Cropland Data Layer (CropScape WCS)"]},
         "per_season": per_season,
@@ -173,13 +179,13 @@ def main():
         "caveats": [
             "Winter-green flag is an unvalidated proxy for cover crops.",
             "Difference-in-differences on observational data: correlation, not proof.",
-            "250 m pixels; one 20 km box in Story County, Iowa.",
+            "250 m pixels; one 20 km box.",
         ],
         "runtime_seconds": round(time.time() - t0, 2),
         "git_commit": git_commit(),
     }
-    OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps(result, indent=2))
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(json.dumps(result, indent=2))
     print(json.dumps({"per_season": per_season, "estimates": estimates}, indent=1))
 
 
