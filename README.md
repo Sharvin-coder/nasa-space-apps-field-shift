@@ -65,33 +65,50 @@ from live NASA POWER and SoilGrids calls. Assumptions baked in so far: an
 April–September growing season and a 2015–2024 window; both are constants at
 the top of `twinfields/fingerprint.py`.
 
-## Near-twin pipeline (first pilot run)
+## Near-twin pipeline and pilot results
 
 ```bash
-.venv/Scripts/python -m twinfields.fetch_pilot   # ~3 min, downloads to data/cache/
-.venv/Scripts/python -m twinfields.neartwin      # ~1 s, writes results/neartwin_pilot.json
+.venv/Scripts/python -m twinfields.fetch_pilot nebraska_gage   # ~3 min, downloads to data/cache/
+.venv/Scripts/python -m twinfields.neartwin nebraska_gage      # ~1 s, writes results/neartwin_nebraska_gage.json
 ```
 
-- **Data:** 467 NASA MODIS 250 m greenness composites (2014–2024) and 11 years
-  of USDA crop maps for a 20 km box east of Ames, Iowa. No login needed.
-- **Method:** keep pixels that are ≥95% corn or soy two years running; flag a
+Regions live in `twinfields/regions.py` (`iowa_story`, `nebraska_gage`).
+
+- **Data:** 467 NASA MODIS 250 m greenness composites (2014-2024) and 11 years
+  of USDA crop maps per 20 km box. No login needed.
+- **Method:** keep pixels that are >=95% corn or soy two years running; flag a
   pixel-year as "winter-green" (a cover-crop proxy) when its spring NDVI is
   0.10 above that year's median; compare summer EVI against the same pixel's
-  unflagged years (difference-in-differences, ~1 km block bootstrap). Details
-  are in the docstring of `twinfields/neartwin.py`.
-- **Result: no drought benefit found in this pilot.** Winter-green pixel-years
-  (572 of them) show about +0.01 EVI in non-dry years (mean July–August EVI
-  +0.016, 95% CI 0.004 to 0.027) and no difference in the three dry years
-  (−0.003, CI −0.018 to 0.008). Year-by-year signs are mixed.
-- **Why this pilot is weak evidence either way:**
-  - The low-rainfall seasons here (2020, 2021, 2023) were not low-greenness
-    seasons; 2018 was the lowest. Rainfall alone is a poor stress marker on
-    these soils.
-  - The winter-green flag is unvalidated and fires on only 1–7% of pixels a year.
-  - 250 m pixels blur field edges. HLS (30 m) is the planned upgrade.
-- **Open decision:** move the pilot to a rain-fed region with a clear stress
-  year, chosen before looking at its results, or keep Iowa and present the
-  honest null.
+  unflagged years (difference-in-differences, ~1 km block bootstrap). Dry
+  years = April-September rain below 80% of the 10-year mean (NASA POWER).
+  Details are in the docstring of `twinfields/neartwin.py`.
+
+Difference in mean July-August EVI for winter-green pixel-years (95% CI):
+
+| Region | Dry years | Other years | Flagged pixel-years |
+|---|---|---|---|
+| Story County, Iowa | -0.003 (-0.018 to 0.008) | +0.016 (0.004 to 0.027) | 572 |
+| Gage County, Nebraska | **-0.038 (-0.051 to -0.025)** | -0.001 (-0.011 to 0.008) | 487 |
+
+Typical summer EVI is about 0.70 in Iowa and 0.65 in Nebraska.
+
+- **What this says:** no dry-year benefit in either region. In Nebraska,
+  winter-green pixel-years were about 6% *less* green in dry summers. The
+  Nebraska region and its dry years were committed (`eb9a818`) before its
+  data was fetched, so this is not a picked result.
+- **Possible reasons, not yet separated:**
+  - A cover crop uses soil water in spring, which can hurt the next crop
+    where water is the limit.
+  - Later planting after a cover crop shifts the season, so a fixed
+    July-August window may read lower without a real loss (peak EVI shows a
+    smaller gap: -0.026).
+  - The flag may be picking up something other than cover crops.
+- **Exploratory only:** 2022 had the lowest greenness in Nebraska but was not
+  a dry year by the rainfall rule (84% of mean). Winter-green pixels were
+  greener that year (+0.033). This was seen after the fact and is not a result.
+- **Limits:** the winter-green flag is unvalidated and fires on 2-11% of
+  pixels a year; 250 m pixels blur field edges (HLS 30 m is the upgrade);
+  greenness is not yield; correlation, not proof.
 
 ## Milestones
 

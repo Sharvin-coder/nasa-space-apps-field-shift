@@ -1,5 +1,5 @@
 {
-  "experiment": "neartwin_pilot",
+  "experiment": "neartwin_iowa_story",
   "config": {
     "seasons": [
       2015,
@@ -20,17 +20,24 @@
     ],
     "green_margin_ndvi": 0.1,
     "min_unflagged_years": 3,
+    "block_px": 4,
+    "bootstrap_reps": 2000,
+    "seed": 0,
+    "region": "iowa_story",
+    "bbox": [
+      -93.59,
+      41.94,
+      -93.35,
+      42.12
+    ],
     "dry_years": [
       2020,
       2021,
       2023
-    ],
-    "block_px": 4,
-    "bootstrap_reps": 2000,
-    "seed": 0
+    ]
   },
   "data": {
-    "cube": "data\\cache\\pilot_cube.npz",
+    "cube": "data\\cache\\iowa_story_cube.npz",
     "sources": [
       "NASA MODIS MOD13Q1/MYD13Q1 v6.1 (Planetary Computer mirror)",
       "USDA NASS Cropland Data Layer (CropScape WCS)"
@@ -375,8 +382,8 @@
   "caveats": [
     "Winter-green flag is an unvalidated proxy for cover crops.",
     "Difference-in-differences on observational data: correlation, not proof.",
-    "250 m pixels; one 20 km box in Story County, Iowa."
+    "250 m pixels; one 20 km box."
   ],
-  "runtime_seconds": 0.71,
-  "git_commit": "868b25134eb6911a223693c3c3ff4e2c06084a52"
+  "runtime_seconds": 0.56,
+  "git_commit": "eb9a818051ebe68f057f6720c2b0ed1b62f0b1dc"
 }
