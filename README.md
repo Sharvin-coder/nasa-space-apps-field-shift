@@ -56,7 +56,7 @@
 
 ```bash
 uv venv --python 3.11
-uv pip install -r requirements.txt
+uv pip install --link-mode=copy -r requirements.txt
 .venv/Scripts/python -m twinfields.fingerprint 42.03 -93.47
 ```
 
@@ -64,6 +64,34 @@ uv pip install -r requirements.txt
 from live NASA POWER and SoilGrids calls. Assumptions baked in so far: an
 April–September growing season and a 2015–2024 window; both are constants at
 the top of `twinfields/fingerprint.py`.
+
+## Near-twin pipeline (first pilot run)
+
+```bash
+.venv/Scripts/python -m twinfields.fetch_pilot   # ~3 min, downloads to data/cache/
+.venv/Scripts/python -m twinfields.neartwin      # ~1 s, writes results/neartwin_pilot.json
+```
+
+- **Data:** 467 NASA MODIS 250 m greenness composites (2014–2024) and 11 years
+  of USDA crop maps for a 20 km box east of Ames, Iowa. No login needed.
+- **Method:** keep pixels that are ≥95% corn or soy two years running; flag a
+  pixel-year as "winter-green" (a cover-crop proxy) when its spring NDVI is
+  0.10 above that year's median; compare summer EVI against the same pixel's
+  unflagged years (difference-in-differences, ~1 km block bootstrap). Details
+  are in the docstring of `twinfields/neartwin.py`.
+- **Result: no drought benefit found in this pilot.** Winter-green pixel-years
+  (572 of them) show about +0.01 EVI in non-dry years (mean July–August EVI
+  +0.016, 95% CI 0.004 to 0.027) and no difference in the three dry years
+  (−0.003, CI −0.018 to 0.008). Year-by-year signs are mixed.
+- **Why this pilot is weak evidence either way:**
+  - The low-rainfall seasons here (2020, 2021, 2023) were not low-greenness
+    seasons; 2018 was the lowest. Rainfall alone is a poor stress marker on
+    these soils.
+  - The winter-green flag is unvalidated and fires on only 1–7% of pixels a year.
+  - 250 m pixels blur field edges. HLS (30 m) is the planned upgrade.
+- **Open decision:** move the pilot to a rain-fed region with a clear stress
+  year, chosen before looking at its results, or keep Iowa and present the
+  honest null.
 
 ## Milestones
 
@@ -101,8 +129,12 @@ Cut order if time runs short: text-message delivery mock-up, then criteria
 ## Repo layout
 
 ```
-twinfields/        Python package (fingerprint done; matching next)
-data/              local data cache (raw files are not committed)
+twinfields/
+  fingerprint.py   auto-fill criteria for a lat/lon
+  fetch_pilot.py   download MODIS greenness + crop history for the pilot box
+  neartwin.py      winter-green flag and dry-year comparison
+results/           one JSON per analysis run (config, numbers, git commit)
+data/cache/        local downloads (not committed)
 ```
 
 ## Data sources
