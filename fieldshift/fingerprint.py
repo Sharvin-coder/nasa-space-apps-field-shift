@@ -34,7 +34,7 @@ POWER_FILL = -999.0
 
 def fetch_power(lat: float, lon: float) -> dict:
     params = {
-        "parameters": "PRECTOTCORR,T2M_MAX,T2M_MIN,ALLSKY_SFC_SW_DWN,GWETROOT",
+        "parameters": "PRECTOTCORR,T2M,T2M_MAX,T2M_MIN,ALLSKY_SFC_SW_DWN,GWETROOT",
         "community": "AG",
         "latitude": lat,
         "longitude": lon,
@@ -52,7 +52,7 @@ def _ok(v) -> bool:
 
 
 def climate_criteria(p: dict) -> dict:
-    rain, gdd, heat, solar, wet = (defaultdict(list) for _ in range(5))
+    rain, gdd, heat, solar, wet, temp, rain_all = (defaultdict(list) for _ in range(7))
     frost_run_best: dict[int, int] = defaultdict(int)
     run = 0
     run_year = None
@@ -70,8 +70,12 @@ def climate_criteria(p: dict) -> dict:
         else:
             run = 0
 
+        if _ok(p["PRECTOTCORR"][day]):
+            rain_all[year].append(p["PRECTOTCORR"][day])
         if month not in SEASON_MONTHS:
             continue
+        if _ok(p["T2M"][day]):
+            temp[year].append(p["T2M"][day])
         if _ok(p["PRECTOTCORR"][day]):
             rain[year].append(p["PRECTOTCORR"][day])
         if _ok(tmax) and _ok(tmin):
@@ -99,6 +103,12 @@ def climate_criteria(p: dict) -> dict:
         "c09_dry_years": [y for y, r in zip(years, season_rain)
                           if r < DRY_YEAR_FRACTION * mean_rain],
         "_season_rain_by_year_mm": {y: round(r, 1) for y, r in zip(years, season_rain)},
+        # extra values the recommender needs (EcoCrop ranges use annual rain
+        # and growing-season mean temperature)
+        "annual_rain_mm": round(statistics.mean(sum(rain_all[y]) for y in years), 1),
+        "season_mean_temp_c": round(statistics.mean(statistics.mean(temp[y]) for y in years), 2),
+        "_annual_rain_by_year_mm": {y: round(sum(rain_all[y]), 1) for y in years},
+        "_season_mean_temp_by_year_c": {y: round(statistics.mean(temp[y]), 2) for y in years},
     }
 
 

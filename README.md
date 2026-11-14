@@ -20,7 +20,8 @@
 - **Real data only.** No invented yields, prices or scores. If a value can't
   be fetched, show it as missing.
 - **No invented weights.** Crop suitability comes from published crop
-  requirement ranges and extension guidance, with the source cited.
+  requirement ranges and USDA guidance, with the source cited. Where we had
+  to make a choice, it is listed under known limits.
 - **Explain every recommendation.** Each one lists the criteria that drove it.
 - **Say what it can't do.** It is decision support, not a yield forecast.
 
@@ -49,23 +50,58 @@
 | 19 | Current crop sequence | USDA Cropland Data Layer (US only) | to do |
 | 20 | Farmer priorities (profit / soil / water) | Farmer input | to do (UI) |
 
-## Run what exists
+## Run it
 
 ```bash
 uv venv --python 3.11
 uv pip install --link-mode=copy -r requirements.txt
-.venv/Scripts/python -m fieldshift.fingerprint 42.03 -93.47
+.venv/Scripts/python -m fieldshift.recommend 42.03 -93.47 --current corn,soybean
 ```
 
-(On macOS/Linux use `.venv/bin/python`.) This prints the auto-filled criteria
-as JSON from live NASA POWER and SoilGrids calls. Assumptions so far: an
-April–September growing season and a 2015–2024 window, both constants at the
-top of `fieldshift/fingerprint.py`.
+(On macOS/Linux use `.venv/bin/python`.)
+
+- `--current corn,soybean` is what the farmer grows now. It is scored as the
+  baseline, and offered rotations keep those crops and add to them.
+- `--fit`, `--soil`, `--water` are the farmer's priority weights (default 1 each).
+- `--json` prints everything, including all criteria and per-crop scores.
+- `python -m fieldshift.fingerprint <lat> <lon>` prints just the criteria.
+
+Example (central Iowa, live data): corn → soybean scores 0.66; adding alfalfa
+and a cool-season broadleaf raises it to 0.84 by meeting all four soil checks.
+
+## How a recommendation is scored
+
+Nothing here is a yield or profit forecast.
+
+| Score | What it is | Source |
+|---|---|---|
+| Crop fit | 1 inside the crop's optimal range for temperature, annual rain and soil pH; 0 outside its absolute range; a straight line between. The lowest factor wins. Warm-season crops also need a long enough frost-free season; soil texture must be tolerated. | [FAO EcoCrop](https://github.com/OpenCLIM/ecocrop) ranges, unchanged, for 17 field crops (`fieldshift/crops.csv`) |
+| Dry-year fit | Crop fit recomputed for the site's three driest of the last ten years | NASA POWER |
+| Soil health | Share of four checks met: 3+ functional groups, a legume, a perennial sod crop, high-residue crops in at least half the sequence | USDA NRCS Conservation Practice Standard 328 (Conservation Crop Rotation) |
+| Water saving | How low the rotation's average optimal-minimum rainfall is, scaled across the crop table | FAO EcoCrop |
+
+The final score is the weighted average of fit (crop fit and dry-year fit
+averaged), soil health and water saving, using the farmer's weights.
+
+**Known limits**
+- **No profit score.** That needs real price and yield data. Markets,
+  equipment and local practice are not considered, so some picks (canola in
+  Iowa) are climatically fine but may not be practical.
+- **EcoCrop is coarse.** In mild climates most crops score near 1, so soil
+  and water scores decide the ranking.
+- **EcoCrop quirk:** grain sorghum's absolute maximum rainfall is 700 mm, so
+  it is ruled out as "too wet" in Iowa and eastern Nebraska. The output flags
+  this.
+- **Our own choices, for agronomist review:** each crop's functional group
+  and residue class, the "3+ groups" threshold, the 0.2 minimum fit, and the
+  soil texture cut-offs.
+- **One growing window** (April–September, Northern Hemisphere) for all crops.
+- Soil values can be missing (for example in towns); those checks are skipped
+  and the output says so.
 
 ## Milestones
 
-1. **Location → criteria → ranked rotations with reasons, in the terminal.**
-   This alone is a complete demo.
+1. ~~Location → criteria → ranked rotations with reasons, in the terminal.~~ Done.
 2. Web app: map pin, criteria panel with overrides, priority sliders,
    recommendation cards.
 3. Remaining criteria (10–15, 19) and the 2040 view.
