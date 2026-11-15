@@ -55,6 +55,18 @@ SLOPE_STEP_M = 90.0                  # spacing of the 3x3 elevation grid
 CDL_YEARS = 5
 
 
+def _first_working(*attempts):
+    """Run (name, function) pairs in order; return the first result.
+    If all fail, the error names every attempt."""
+    errors = []
+    for name, fn in attempts:
+        try:
+            return fn()
+        except Exception as exc:
+            errors.append(f"{name}: {type(exc).__name__} {str(exc)[:120]}")
+    raise RuntimeError(" | ".join(errors))
+
+
 # ------------------------------------------------------------ NASA POWER
 def fetch_power(lat: float, lon: float) -> dict:
     params = {
@@ -295,10 +307,8 @@ def _soil_rest(lat: float, lon: float) -> dict:
 
 def soil_criteria(lat: float, lon: float) -> dict:
     """SoilGrids 0-5 cm values: map server first, point API as a fallback."""
-    try:
-        return _soil_wcs(lat, lon)
-    except Exception:
-        return _soil_rest(lat, lon)
+    return _first_working(("ISRIC map server", lambda: _soil_wcs(lat, lon)),
+                          ("SoilGrids point API", lambda: _soil_rest(lat, lon)))
 
 
 # ----------------------------------------------------- crop sequence (19)
@@ -374,11 +384,12 @@ def crop_sequence_criteria(lat: float, lon: float) -> dict:
             cats = list(ex.map(lambda yr: lookup(yr, lat, lon), years))
         return {yr: cat for yr, cat in zip(years, cats) if cat}
 
-    try:
+    def usda():
         _cdl_names()
-        seq = fetch(_cdl_usda)
-    except Exception:
-        seq = fetch(_cdl_cropscape)
+        return fetch(_cdl_usda)
+
+    seq = _first_working(("USDA image server", usda),
+                         ("CropScape", lambda: fetch(_cdl_cropscape)))
     return {"c19_crop_sequence": {yr: seq[yr] for yr in sorted(seq)[-CDL_YEARS:]}}
 
 
