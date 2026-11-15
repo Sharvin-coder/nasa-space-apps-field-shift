@@ -164,7 +164,7 @@ We first tried backing recommendations with satellite comparisons of
 neighbouring fields. Pilots in Iowa and Nebraska found no dry-year benefit
 for winter-green (cover-crop proxy) fields, and a negative difference in
 Nebraska, so we dropped that approach. The code and results are in git
-history at commit `b7848e8`. One lesson carried forward: do not promise that
+history at commit `a28053d`. One lesson carried forward: do not promise that
 cover crops improve drought resilience everywhere.
 
 ## Data sources
