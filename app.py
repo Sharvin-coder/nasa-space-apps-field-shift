@@ -2,6 +2,9 @@
 
 Run from the repo root:
     streamlit run app.py
+
+The page is laid out as a cross-section of the pinned field: the air, the
+surface, the soil and the water under it, then the fine print.
 """
 from __future__ import annotations
 
@@ -13,6 +16,7 @@ from streamlit_folium import st_folium
 
 from fieldshift.fingerprint import fingerprint
 from fieldshift.recommend import (
+    CDL_TO_CROP,
     detected_crops,
     load_crops,
     recommend,
@@ -23,972 +27,889 @@ st.set_page_config(page_title="Field Shift", page_icon="🌾", layout="wide")
 
 REPO_URL = "https://github.com/Sharvin-coder/nasa-space-apps-field-shift"
 
-# criterion key -> (label, unit, source)
-CRITERIA = [
-    ("c01_season_rain_mm", "Growing-season rainfall", "mm", "NASA POWER"),
-    ("annual_rain_mm", "Annual rainfall", "mm", "NASA POWER"),
-    ("season_mean_temp_c", "Growing-season mean temperature", "°C", "NASA POWER"),
-    ("c02_season_gdd_c", "Growing degree days", "°C·days", "NASA POWER"),
-    ("c03_heat_days_per_season", "Heat days (max above 32 °C)", "days", "NASA POWER"),
-    ("c04_frost_free_days", "Frost-free days", "days", "NASA POWER"),
-    ("c05_season_solar_mj_m2_day", "Solar radiation", "MJ/m²/day", "NASA POWER"),
-    ("c06_aridity_index", "Aridity index (rain ÷ evaporative demand)", "", "NASA POWER"),
-    ("c07_season_rain_cv", "Year-to-year rainfall variability", "CV", "NASA POWER"),
-    ("c08_root_zone_wetness_0to1", "Root-zone soil wetness", "0–1", "NASA POWER (MERRA-2)"),
-    ("c09_dry_years", "Dry seasons, 2015–2024", "", "NASA POWER"),
-    ("c10_groundwater_percentile_latest", "Groundwater wetness now (0 driest – 100 wettest)",
-     "percentile", "NASA GRACE-FO"),
-    ("c10_groundwater_percentile_10yr_mean", "Groundwater wetness, 10-year average",
-     "percentile", "NASA GRACE / GRACE-FO"),
-    ("c11_slope_pct", "Slope", "%", "NASA SRTM"),
-    ("c14_season_temp_change_2040_c", "Projected temperature change by 2040", "°C",
-     "NASA NEX-GDDP-CMIP6"),
-    ("c15_annual_rain_change_2040_pct", "Projected rainfall change by 2040", "%",
-     "NASA NEX-GDDP-CMIP6"),
-    ("c16_clay_pct", "Soil clay", "%", "ISRIC SoilGrids 250m"),
-    ("c16_sand_pct", "Soil sand", "%", "ISRIC SoilGrids 250m"),
-    ("c17_soil_organic_carbon_g_per_kg", "Soil organic carbon", "g/kg", "ISRIC SoilGrids 250m"),
-    ("c18_soil_ph", "Soil pH", "", "ISRIC SoilGrids 250m"),
-    ("c19_crop_sequence", "Crops grown here, last 5 years", "", "USDA Cropland Data Layer"),
+# The two worked examples from the submission write-up.
+EXAMPLES = {"Central Iowa": (42.10, -93.55), "Southwest Kansas": (38.05, -100.95)}
+
+# criterion key -> (README number, label, unit, decimals, source)
+CRITERIA = {
+    "c01_season_rain_mm": ("1", "Growing-season rainfall", "mm", 0, "NASA POWER"),
+    "annual_rain_mm": ("", "Annual rainfall", "mm", 0, "NASA POWER"),
+    "season_mean_temp_c": ("", "Growing-season mean temperature", "°C", 1, "NASA POWER"),
+    "c02_season_gdd_c": ("2", "Growing degree days", "°C·days", 0, "NASA POWER"),
+    "c03_heat_days_per_season": ("3", "Heat days (max above 32 °C)", "days", 0, "NASA POWER"),
+    "c04_frost_free_days": ("4", "Frost-free days", "days", 0, "NASA POWER"),
+    "c05_season_solar_mj_m2_day": ("5", "Solar radiation", "MJ/m²/day", 2, "NASA POWER"),
+    "c06_aridity_index": ("6", "Aridity index (rain ÷ evaporative demand)", "", 2,
+                          "NASA POWER"),
+    "c07_season_rain_cv": ("7", "Year-to-year rainfall variability", "CV", 2, "NASA POWER"),
+    "c08_root_zone_wetness_0to1": ("8", "Root-zone soil wetness", "on a 0–1 scale", 2,
+                                   "NASA POWER (MERRA-2)"),
+    "c09_dry_years": ("9", "Dry seasons, 2015–2024", "", 0, "NASA POWER"),
+    "c10_groundwater_percentile_latest": ("10", "Groundwater wetness now", "percentile", 1,
+                                          "NASA GRACE-FO"),
+    "c10_groundwater_percentile_10yr_mean": ("10", "Groundwater wetness, 10-year average",
+                                             "percentile", 1, "NASA GRACE / GRACE-FO"),
+    "c11_slope_pct": ("11", "Slope", "%", 1, "NASA SRTM"),
+    "c14_season_temp_change_2040_c": ("14", "Projected temperature change by 2040", "°C", 2,
+                                      "NASA NEX-GDDP-CMIP6"),
+    "c15_annual_rain_change_2040_pct": ("15", "Projected rainfall change by 2040", "%", 1,
+                                        "NASA NEX-GDDP-CMIP6"),
+    "c16_clay_pct": ("16", "Soil clay", "%", 1, "ISRIC SoilGrids 250m"),
+    "c16_sand_pct": ("16", "Soil sand", "%", 1, "ISRIC SoilGrids 250m"),
+    "c17_soil_organic_carbon_g_per_kg": ("17", "Soil organic carbon", "g/kg", 1,
+                                         "ISRIC SoilGrids 250m"),
+    "c18_soil_ph": ("18", "Soil pH in H₂O", "", 1, "ISRIC SoilGrids 250m"),
+    "c19_crop_sequence": ("19", "Crops grown here, last 5 years", "", 0,
+                          "USDA Cropland Data Layer"),
+}
+SIGNED = {"c14_season_temp_change_2040_c", "c15_annual_rain_change_2040_pct"}
+
+# Planned criteria that are not wired yet (README, criteria 12 and 13).
+UNWIRED = [
+    ("12", "Field greenness trend", "NASA MODIS / HLS"),
+    ("13", "Greenness drop in dry years", "NASA MODIS / HLS"),
 ]
 
-PRIMARY_KEYS = {
-    "c10_groundwater_percentile_latest",
-    "c10_groundwater_percentile_10yr_mean",
-    "c11_slope_pct",
-    "c14_season_temp_change_2040_c",
-    "c15_annual_rain_change_2040_pct",
-    "c16_clay_pct",
-    "c16_sand_pct",
-    "c17_soil_organic_carbon_g_per_kg",
-    "c18_soil_ph",
-    "c19_crop_sequence",
-}
+CROPS = {c["crop"]: c for c in load_crops()}
 
-EXTRA_SPECS = {
-    "c01_season_rain_mm": (0, "mm"),
-    "annual_rain_mm": (0, "mm"),
-    "season_mean_temp_c": (1, "°C"),
-    "c02_season_gdd_c": (0, "°C·days"),
-    "c03_heat_days_per_season": (0, "days"),
-    "c04_frost_free_days": (0, "days"),
-    "c05_season_solar_mj_m2_day": (2, "MJ/m²/day"),
-    "c06_aridity_index": (2, ""),
-    "c07_season_rain_cv": (2, ""),
-    "c08_root_zone_wetness_0to1": (2, "0–1"),
-    "c09_dry_years": (0, ""),
+# functional group -> (ink token, plain name). The four soil-health checks count these.
+GROUPS = {
+    "warm_grass": ("corn", "Warm-season grass"),
+    "cool_grass": ("grain", "Cool-season grass"),
+    "warm_broadleaf": ("squash", "Warm-season broadleaf"),
+    "cool_broadleaf": ("hay", "Cool-season broadleaf"),
 }
 
 # --------------------------------------------------------------------- styles
 CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Besley:wght@400..900&family=Libre+Franklin:ital,wght@0,300..800;1,400..500&display=swap');
 
 :root {
-  --fs-bg: #0b0f17;
-  --fs-850: #111827;
-  --fs-800: #172033;
-  --fs-750: #1e293b;
-  --fs-700: #334155;
-  --fs-brand: #10b981;
-  --fs-brand-soft: #34d399;
-  --fs-text: #e2e8f0;
-  --fs-muted: #94a3b8;
+  --paper: #F7F0DD;
+  --paper-2: #EBE1C6;
+  --ink: #1F150D;
+  --ink-2: #5B4A39;
+
+  --sky: #125A64;
+  --sky-deep: #0C434B;
+  --sky-tint: #C6E6E1;
+  --ground: #39230F;
+  --ground-deep: #25160A;
+  --ground-tint: #E2CDAA;
+  --water: #1B4A7C;
+  --water-deep: #123863;
+  --water-tint: #CADFF4;
+
+  --corn: #55A04E;
+  --grain: #EFBB3F;
+  --squash: #E58238;
+  --hay: #3FA0AB;
+  --fallow: #B9A98C;
+
+  --barn: #D2452F;
+  --gold: #F4C24C;
+
+  --good: #9AD06A;
+  --note: #9AD6EA;
+  --watch: #F4C24C;
+  --concern: #F59A52;
+
+  --display: 'Besley', Clarendon, Rockwell, Georgia, serif;
+  --text: 'Libre Franklin', 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --wrap: 80rem;
+  --pad: max(1.25rem, calc((100vw - var(--wrap)) / 2));
+
+  --grain-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .5 -.16'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grain-soft: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .12 0 0 0 .34 -.13'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --strip-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 8C22 0 46 11 100 3V94C74 100 44 89 0 97Z'/%3E%3C/svg%3E");
 }
 
-html, body, .stApp, button, input, textarea, select {
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif !important;
+/* ------------------------------------------------------------------- base */
+html, body, .stApp, .stApp button, .stApp input, .stApp textarea, .stApp select {
+  font-family: var(--text) !important;
 }
-
 .stApp {
-  color: var(--fs-text);
-  background:
-    radial-gradient(1100px 540px at 12% -8%, rgba(16, 185, 129, 0.09), transparent 62%),
-    radial-gradient(900px 520px at 92% 4%, rgba(14, 116, 144, 0.07), transparent 60%),
-    var(--fs-bg);
+  background: var(--sky);
+  color: var(--paper);
+  font-variant-numeric: lining-nums;
+  -webkit-font-smoothing: antialiased;
 }
-
-/* remove the Streamlit chrome so the dashboard owns the page */
 header[data-testid="stHeader"],
 [data-testid="stToolbar"],
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"],
 [data-testid="stAppFooter"],
 [data-testid="stFooter"],
-#MainMenu {
-  display: none !important;
+#MainMenu { display: none !important; }
+
+[data-testid="stMain"] {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  scrollbar-color: var(--paper-2) var(--sky-deep);
+}
+[data-testid="stMainBlockContainer"] { max-width: none !important; padding: 0 !important; }
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] { gap: 0 !important; }
+
+::selection { background: var(--gold); color: var(--ink); }
+.st-key-plate, .st-key-plan, .st-key-band-paper { --ring: var(--barn); }
+.stApp input { caret-color: var(--barn); }
+.stApp a:focus-visible,
+.stApp button:focus-visible,
+.stApp summary:focus-visible,
+.stApp input:focus-visible {
+  outline: 2px solid var(--ring, var(--gold));
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
-[data-testid="stAppViewBlockContainer"],
-[data-testid="stMainBlockContainer"],
-.block-container {
-  max-width: 1360px;
-  padding: 0 24px 40px;
+.stApp [data-testid="stMarkdownContainer"] { color: inherit; margin-bottom: 0 !important; }
+.stApp [data-testid="stMarkdownContainer"] p { margin: 0; color: inherit; }
+.stApp [data-testid="stMarkdownContainer"] a { color: inherit; }
+
+/* ------------------------------------------------------------------ bands */
+.st-key-band-sky,
+.st-key-band-ground,
+.st-key-band-water,
+.st-key-band-paper {
+  gap: 0 !important;
+  padding: 0 var(--pad);
+  color: var(--fg);
+  background-color: var(--bg);
+  background-image: var(--grain-img);
+}
+.st-key-band-paper { background-image: var(--grain-soft); }
+.stApp:has(.foot) { background: linear-gradient(var(--sky) 0 50%, var(--paper) 50% 100%); }
+.st-key-band-sky {
+  padding-bottom: clamp(1.75rem, 3.4vw, 3rem);
+  --bg: var(--sky); --fg: var(--paper); --fg2: var(--sky-tint);
+  --rule: rgba(247, 240, 221, .28); --field: rgba(4, 34, 39, .32);
+}
+.st-key-band-ground {
+  --bg: var(--ground); --fg: var(--paper); --fg2: var(--ground-tint);
+  --rule: rgba(247, 240, 221, .24); --field: rgba(0, 0, 0, .28);
+}
+.st-key-band-water {
+  --bg: var(--water); --fg: var(--paper); --fg2: var(--water-tint);
+  --rule: rgba(247, 240, 221, .28); --field: rgba(6, 22, 48, .34);
+}
+.st-key-band-paper,
+.st-key-plate,
+.st-key-plan {
+  --bg: var(--paper); --fg: var(--ink); --fg2: var(--ink-2);
+  --rule: rgba(31, 21, 13, .2); --field: rgba(31, 21, 13, .05);
 }
 
-::-webkit-scrollbar { width: 7px; height: 7px; }
-::-webkit-scrollbar-track { background: var(--fs-bg); }
-::-webkit-scrollbar-thumb { background: var(--fs-700); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-::selection { background: var(--fs-brand); color: #020617; }
-
-[data-testid="stMarkdownContainer"] p { margin-bottom: 0; }
-[data-testid="stVerticalBlock"] { gap: 0.85rem; }
-
-/* ------------------------------------------------------------------ header */
-.fs-header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  margin: -14px calc(50% - 50vw) 24px;
-  padding: 12px max(24px, calc(50vw - 656px));
-  border-bottom: 1px solid var(--fs-750);
-  background: rgba(17, 24, 39, 0.84);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+/* --------------------------------------------------------------------- type */
+.stApp h1.hero-h {
+  margin: 0; padding: 0;
+  font: 900 clamp(2.5rem, .9rem + 3.6vw, 4rem)/.97 var(--display);
+  letter-spacing: -.022em;
+  color: var(--paper);
+  text-wrap: balance;
 }
-.fs-header-inner {
-  max-width: 1312px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+.stApp h1.hero-h span { display: block; }
+.stApp h1.hero-h span + span { color: var(--gold); }
+.stApp h2.layer-h {
+  margin: 0; padding: 0;
+  font: 800 clamp(1.75rem, 1.25rem + 1.35vw, 2.375rem)/1.06 var(--display);
+  letter-spacing: -.016em;
+  color: var(--fg);
+  text-wrap: balance;
 }
-.fs-brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.fs-logo {
-  width: 42px; height: 42px; flex: 0 0 42px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 13px;
-  color: #020617;
-  background: linear-gradient(135deg, #34d399, #047857);
-  box-shadow: 0 10px 26px rgba(16, 185, 129, 0.2);
-  border: 1px solid rgba(110, 231, 183, 0.35);
+.stApp h3.group-h {
+  margin: 0; padding: 0;
+  font: 700 1.1875rem/1.2 var(--display);
+  letter-spacing: -.005em;
+  color: var(--fg);
 }
-.fs-brand-line { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.stApp .fs-brand-line h1 {
+.stApp p.lead {
+  margin: .625rem 0 0;
+  max-width: 64ch;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  color: var(--fg2);
+}
+.stApp p.small, .small {
+  font-size: .8125rem;
+  line-height: 1.45;
+  color: var(--fg2);
+}
+.stApp .tnum { font-variant-numeric: tabular-nums lining-nums; }
+
+.ic {
+  flex: none; fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round; vertical-align: -.16em;
+}
+
+/* ---------------------------------------------------------------- masthead */
+.mast {
+  display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem;
+  padding: 1.125rem 0 .875rem;
+  border-bottom: 1px solid var(--rule);
+  animation: rise .7s var(--ease) both;
+}
+.mast-mark {
+  display: inline-flex; align-items: center; gap: .6rem;
+  font: 900 1.4375rem/1 var(--display);
+  letter-spacing: -.012em;
+  color: var(--paper);
+}
+.stApp .mast-tag { font-size: .8125rem; color: var(--sky-tint); }
+.mast-nav { margin-left: auto; display: flex; gap: 1.375rem; }
+.stApp .mast-nav a {
+  font-size: .875rem; font-weight: 600; color: var(--paper);
+  text-decoration: underline;
+  text-decoration-color: rgba(247, 240, 221, .45);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: .24em;
+  transition: text-decoration-color .18s var(--ease);
+}
+.stApp .mast-nav a:hover { text-decoration-color: var(--gold); }
+
+/* -------------------------------------------------------------------- hero */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 1.25rem 3.5rem;
+  align-items: end;
+  padding: clamp(1.5rem, 3vw, 2.5rem) 0 clamp(1.25rem, 2.4vw, 2rem);
+}
+.stApp p.hero-deck {
+  font-size: 1.0625rem; line-height: 1.5; color: var(--sky-tint);
+  max-width: 46ch; padding-bottom: .3rem;
+  animation: rise .9s var(--ease) .24s both;
+}
+.stApp h1.hero-h span { animation: rise .9s var(--ease) both; }
+.stApp h1.hero-h span + span { animation-delay: .12s; }
+
+.st-key-hero-cols { gap: 0 !important; }
+.st-key-hero-cols > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {
+  gap: 1.75rem !important;
+  align-items: stretch !important;
+}
+.st-key-hero-cols > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]
+  > [data-testid="stColumn"] > [data-testid="stVerticalBlock"],
+.st-key-hero-cols > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]
+  > [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"] {
+  height: 100%;
+}
+
+/* the two paper plates: the map and the plan */
+.st-key-plate, .st-key-plan {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 3px;
+  box-shadow: 0 26px 48px -26px rgba(2, 24, 28, .78), 0 3px 9px rgba(2, 24, 28, .24);
+}
+.st-key-plate {
+  padding: .625rem .625rem .875rem;
+  gap: .625rem !important;
+  animation: settle 1s var(--ease) .3s both;
+}
+.st-key-plan {
+  padding: 1.25rem 1.375rem 1.125rem;
+  gap: .75rem !important;
+  height: 100%;
+  animation: settle 1s var(--ease) .42s both;
+}
+.st-key-plate iframe { display: block; border: 0; border-radius: 2px; background: var(--sky-deep); }
+.st-key-plate-controls { padding: 0 .375rem; gap: .625rem !important; }
+.stApp p.plate-cap { font-size: .875rem; line-height: 1.4; color: var(--ink-2); }
+.stApp p.plate-cap b { color: var(--ink); font-weight: 650; }
+
+.st-key-examples {
+  flex-direction: row !important; flex-wrap: wrap !important;
+  align-items: baseline !important; gap: .25rem 1rem !important;
+}
+.st-key-examples > [data-testid="stElementContainer"] { width: auto !important; flex: 0 0 auto !important; }
+.st-key-examples [data-testid="stBaseButton-secondary"] {
+  background: transparent !important; border: 0 !important; padding: 0 !important;
+  min-height: 0 !important;
+  color: var(--ink) !important; font-size: .875rem; font-weight: 650;
+  text-decoration: underline;
+  text-decoration-color: var(--barn);
+  text-decoration-thickness: 2px;
+  text-underline-offset: .22em;
+}
+.st-key-examples [data-testid="stBaseButton-secondary"]:hover { color: var(--barn) !important; }
+
+.stApp h2.plan-h {
+  margin: 0; padding: 0 0 .125rem;
+  font: 800 1.5rem/1.1 var(--display);
+  letter-spacing: -.012em;
+  color: var(--ink);
+}
+.stApp p.plan-note { font-size: .8125rem; line-height: 1.4; color: var(--ink-2); margin-top: -.375rem; }
+.stApp p.plan-key { margin-top: .5rem; }
+
+.shift { display: grid; gap: .75rem; margin-top: .125rem; }
+.shift-row { display: grid; gap: .3rem; }
+.shift-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.shift-label { font: 700 1rem/1.1 var(--display); color: var(--ink-2); }
+.shift-row.is-next .shift-label { color: var(--ink); }
+.shift-score {
+  display: inline-flex; align-items: center; gap: .6rem;
+  font: 700 1.375rem/1 var(--display);
+  color: var(--ink-2);
+}
+.shift-row.is-next .shift-score { font-weight: 900; font-size: 2.125rem; color: var(--ink); }
+.stApp p.plan-sum { font-size: .9375rem; line-height: 1.45; color: var(--ink); margin-top: .125rem; }
+.stApp p.plan-sum b { font-weight: 700; }
+.stApp p.plan-more { font-size: .875rem; }
+.stApp p.plan-more a {
+  display: inline-flex; align-items: center; gap: .4rem;
+  color: var(--ink); font-weight: 650;
+  text-decoration: underline;
+  text-decoration-color: var(--barn);
+  text-decoration-thickness: 2px;
+  text-underline-offset: .22em;
+}
+.stApp p.plan-more a:hover { color: var(--barn); }
+.plan-msg {
+  padding: .75rem .875rem;
+  border: 1.5px dashed rgba(31, 21, 13, .45);
+  border-radius: 3px;
+  font-size: .9375rem; line-height: 1.45; color: var(--ink);
+}
+.plan-msg b { font-weight: 700; }
+
+/* ------------------------------------------------------------------ strips */
+.stApp ol.strips {
+  --n: 4;
+  list-style: none; margin: 0; padding: 3px;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: 3px;
+  background: var(--strip-back, var(--ground));
+  -webkit-mask: var(--strip-mask) center / 100% 100% no-repeat;
+  mask: var(--strip-mask) center / 100% 100% no-repeat;
+}
+.st-key-band-ground ol.strips { --strip-back: var(--ground-deep); }
+.stApp ol.strips > li {
   margin: 0;
-  font-size: 20px;
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: #fff;
+  padding: .55rem .5rem .6rem .8rem;
+  min-height: 3.875rem;
+  display: flex; flex-direction: column; justify-content: space-between; gap: .2rem;
+  container-type: inline-size;
+  color: var(--ink);
+  background: var(--c, var(--fallow));
+  clip-path: polygon(.5rem 0, 100% 0, calc(100% - .5rem) 100%, 0 100%);
+  line-height: 1.12;
 }
-.fs-version {
-  display: inline-flex; align-items: center;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid rgba(16, 185, 129, 0.22);
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+.stApp ol.strips.p0 > li { animation: plant0 .85s var(--ease) both; animation-delay: calc(var(--i) * 85ms + var(--d, 0ms)); }
+.stApp ol.strips.p1 > li { animation: plant1 .85s var(--ease) both; animation-delay: calc(var(--i) * 85ms + var(--d, 0ms)); }
+.stApp ol.strips > li.g-corn { --c: var(--corn); }
+.stApp ol.strips > li.g-grain { --c: var(--grain); }
+.stApp ol.strips > li.g-squash { --c: var(--squash); }
+.stApp ol.strips > li.g-hay { --c: var(--hay); }
+.stApp ol.strips > li.strip-empty {
+  background: repeating-linear-gradient(-58deg, rgba(247, 240, 221, .2) 0 2px, transparent 2px 9px);
+}
+.strip-top { display: flex; align-items: center; justify-content: space-between; gap: .25rem; min-height: 1rem; }
+.strip-yr { font-size: .75rem; font-weight: 550; white-space: nowrap; }
+@container (max-width: 4.75rem) { .strip-yr-word { display: none; } }
+.strip-tag {
+  display: inline-flex; align-items: center; gap: .2rem;
+  font-size: .75rem; font-weight: 700; line-height: 1;
+  padding: .2rem .34rem .2rem .26rem; border-radius: 2px;
+  background: var(--ink); color: var(--paper);
+}
+.strip-tag .ic { stroke-width: 2.2; }
+@container (max-width: 8.5rem) {
+  .strip-tag { padding: .2rem; }
+  .strip-tag-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+.strip-crop { font-weight: 750; font-size: clamp(.75rem, 15cqi, .9375rem); overflow-wrap: break-word; }
+.strip-marks { display: inline-flex; gap: .2rem; margin-left: .3rem; vertical-align: -.1em; }
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: .4rem 1.25rem;
+  margin: .75rem 0 0;
+  font-size: .8125rem; line-height: 1.4; color: var(--fg2);
+}
+.legend span { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
+.legend i { width: .875rem; height: .875rem; border-radius: 2px; background: var(--c); flex: none; }
+.legend .ic { color: var(--fg); }
+
+/* ------------------------------------------------------------------ layers */
+.layer { padding: clamp(2.25rem, 4.4vw, 4rem) 0 0; }
+.layer-end { padding-bottom: clamp(2.25rem, 4.4vw, 4rem); }
+.intro {
+  display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: .75rem 3.5rem; align-items: end;
+  padding: clamp(2.5rem, 5vw, 4.25rem) 0 0;
+}
+.stApp p.intro-big {
+  font: 700 clamp(1.375rem, 1rem + 1.1vw, 1.875rem)/1.18 var(--display);
+  letter-spacing: -.012em;
+  color: var(--paper);
+  text-wrap: balance;
+}
+.stApp p.intro-big b { color: var(--gold); font-weight: 900; }
+.keyline {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .35rem 1.125rem;
+  margin: 0;
+  font-size: .8125rem; line-height: 1.4; color: var(--fg2);
+}
+.keyline .verdict { font-weight: 500; color: var(--fg2); }
+
+.ledgers {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem 4rem;
+  margin-top: 1.5rem;
+}
+.ledgers.is-three { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.stApp ul.ledger { list-style: none; margin: .625rem 0 0; padding: 0; }
+.stApp ul.ledger > li {
+  margin: 0;
+  padding: .55rem 0 .6rem;
+  display: grid;
+  grid-template-columns: 1.875rem minmax(0, 1fr);
+  border-top: 1px solid var(--rule);
+  font-size: .9375rem; line-height: 1.35;
+}
+.stApp ul.ledger > li:last-child { border-bottom: 1px solid var(--rule); }
+.lg-num {
+  grid-row: 1 / span 3;
+  padding-top: .22rem;
+  font-size: .75rem; font-weight: 600; color: var(--fg2);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.lg-main { display: flex; align-items: baseline; gap: .5rem; min-width: 0; }
+.lg-name { font-weight: 550; color: var(--fg); }
+.lg-lead {
+  flex: 1 1 1.25rem; min-width: 1.25rem;
+  border-bottom: 1.5px dotted currentColor;
+  opacity: .38;
+  transform: translateY(-.26em);
+}
+.lg-val { white-space: nowrap; color: var(--fg); font-variant-numeric: tabular-nums lining-nums; }
+.lg-val b { font: 700 1.1875rem/1 var(--display); }
+.lg-unit { font-size: .8125rem; color: var(--fg2); margin-left: .18em; }
+.lg-meta {
+  grid-column: 2;
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: .1rem 1rem;
+  margin-top: .12rem;
+  font-size: .8125rem; color: var(--fg2);
+}
+.lg-extra { grid-column: 2; margin-top: .55rem; }
+.lg-sub .lg-name::before {
+  content: ""; display: inline-block;
+  width: .6rem; height: .55rem; margin-right: .45rem;
+  border-left: 1.5px solid var(--fg2); border-bottom: 1.5px solid var(--fg2);
+  transform: translateY(-.25em);
+}
+.slot {
+  display: inline-block;
+  padding: .12rem .5rem;
+  border: 1.5px dashed var(--fg2);
+  border-radius: 2px;
+  font: 600 .8125rem/1.3 var(--text);
+  color: var(--fg2);
+}
+
+.verdict { display: inline-flex; align-items: center; gap: .4rem; font-weight: 600; color: var(--fg); white-space: nowrap; }
+.v-mark { width: .625rem; height: .625rem; flex: none; border-radius: 50%; background: var(--v, var(--fg2)); }
+.v-good { --v: var(--good); }
+.v-note { --v: var(--note); }
+.v-watch .v-mark {
+  background: linear-gradient(90deg, var(--watch) 50%, transparent 50%);
+  box-shadow: inset 0 0 0 1.5px var(--watch);
+}
+.v-concern .v-mark { border-radius: 0; background: var(--concern); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.v-plain .v-mark { background: transparent; box-shadow: inset 0 0 0 1.5px var(--fg2); }
+
+/* ten-year histories drawn from the fetched data */
+.hist { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; max-width: 26rem; }
+.hist-bars { align-items: end; height: 3.5rem; border-bottom: 1.5px solid var(--rule); }
+.hist-bars i {
+  display: block; height: var(--h); min-height: 2px;
+  background: rgba(247, 240, 221, .5);
+  border-radius: 1px 1px 0 0;
+}
+.hist-bars i.is-mark { background: var(--watch); }
+.hist-bars i.is-now { background: var(--paper); }
+.hist-x {
+  margin-top: .25rem;
+  font-size: .75rem; line-height: 1; color: var(--fg2); text-align: center;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.stApp p.hist-cap { margin-top: .4rem; font-size: .8125rem; line-height: 1.4; color: var(--fg2); max-width: 26rem; }
+.stApp ol.strips.strips-hist { max-width: 38rem; grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr)); }
+.stApp ol.strips.strips-hist > li { min-height: 3.25rem; }
+
+/* ------------------------------------------------------- horizon and edges */
+.horizon { line-height: 0; background: var(--sky) var(--grain-img); }
+.horizon svg { display: block; width: 100%; height: clamp(7.5rem, 14vw, 13rem); }
+.hz-top { fill: none; stroke: rgba(247, 240, 221, .6); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.hz-band { animation: sweep 1.15s var(--ease) both; animation-delay: calc(var(--i) * 110ms + .35s); }
+.hz-band path { transition: fill .7s var(--ease); }
+.hz-row { fill: none; stroke: rgba(31, 21, 13, .3); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.hz-ground { fill: var(--ground); }
+.divide { line-height: 0; }
+.divide svg { display: block; width: 100%; height: clamp(2rem, 4vw, 3.5rem); }
+.divide-water { background: var(--ground) var(--grain-img); }
+.divide-water .dv-fill { fill: var(--water); }
+.divide-water .dv-line { fill: none; stroke: rgba(202, 223, 244, .38); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.divide-rock { background: var(--water) var(--grain-img); }
+.divide-rock .dv-fill { fill: var(--paper); }
+.divide-rock.from-sky { background: var(--sky) var(--grain-img); }
+.contour { line-height: 0; margin-top: clamp(2.25rem, 4.4vw, 4rem); }
+.contour svg { display: block; width: 100%; height: 1.25rem; }
+.contour path { fill: none; stroke: var(--rule); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+
+/* ---------------------------------------------------------------- rotations */
+.st-key-priorities { gap: .875rem !important; margin-top: 1.75rem; }
+.group-head { display: grid; gap: .25rem; }
+
+.sch { margin-top: 1.75rem; }
+.sch-head, .sch-row {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr) minmax(0, 29rem);
+  column-gap: 1.5rem;
+  align-items: center;
+}
+.sch-head { padding-bottom: .625rem; font-size: .8125rem; font-weight: 500; color: var(--fg2); }
+.sch-cols, .stApp dl.sch-nums {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr 1fr 1.2fr 1fr;
+  column-gap: .75rem;
+  align-items: baseline;
+  margin: 0;
+}
+.st-key-ranked { gap: 0 !important; }
+.st-key-ranked > [data-testid="stLayoutWrapper"] > [data-testid="stVerticalBlock"] {
+  gap: .375rem !important;
+  padding: .875rem 0 .5rem;
+  border-top: 1px solid var(--rule);
+}
+.sch-rank { font: 900 2.125rem/1 var(--display); color: var(--fg2); font-variant-numeric: lining-nums; }
+.sch-row.is-top .sch-rank { color: var(--gold); }
+.sch-rank.is-now { font: 700 .9375rem/1.1 var(--display); color: var(--fg2); }
+.stApp dl.sch-nums > div { margin: 0; min-width: 0; }
+.stApp dl.sch-nums dt { font-size: .75rem; font-weight: 500; color: var(--fg2); margin: 0 0 .15rem; }
+.stApp dl.sch-nums dd {
+  margin: 0;
+  font-size: 1rem; font-weight: 600; color: var(--fg);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.stApp dl.sch-nums dd.sch-score { font: 800 1.5rem/1 var(--display); }
+.sch-row.is-top dd.sch-score { color: var(--gold); font-size: 1.875rem; font-weight: 900; }
+.delta {
+  display: inline-block;
+  padding: .12rem .34rem;
+  border-radius: 2px;
+  font: 700 .8125rem/1.1 var(--text);
+  font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap;
 }
-.stApp .fs-brand p {
-  margin: 3px 0 0;
-  color: var(--fs-muted);
-  font-size: 11.5px;
-  line-height: 1.35;
+.delta.up { background: var(--gold); color: var(--ink); }
+.delta.down { box-shadow: inset 0 0 0 1.5px currentColor; color: var(--concern); }
+.st-key-plan .delta.down { color: var(--barn); }
+.delta.flat { box-shadow: inset 0 0 0 1.5px var(--rule); color: var(--fg2); }
+.sch-score-wrap { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .5rem; }
+@media (min-width: 62.01rem) {
+  .stApp dl.sch-nums dt {
+    position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+  .st-key-ranked [data-testid="stExpander"] { padding-left: 4.75rem; box-sizing: border-box; }
 }
-.fs-header-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
-.fs-top-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 10px;
-  border-radius: 9px;
-  border: 1px solid var(--fs-700);
-  background: var(--fs-800);
-  color: #cbd5e1;
-  font-size: 11.5px;
-  font-weight: 600;
-  text-decoration: none !important;
-  transition: all 0.15s ease;
-}
-.fs-top-btn:hover { background: var(--fs-750); color: #fff; border-color: #475569; }
-.fs-top-btn.fs-icon-only { padding: 7px; }
-.fs-top-sep { width: 1px; height: 20px; background: var(--fs-700); margin: 0 2px; }
+.stApp p.sch-foot { margin-top: 1.25rem; max-width: 80ch; }
 
-/* ------------------------------------------------------------------- cards */
-.fs-card-gap { height: 0; }
-.st-key-field-panel,
-.st-key-map-card,
-.st-key-criteria-card,
-.st-key-recs-card {
-  background: var(--fs-850);
-  border: 1px solid rgba(51, 65, 85, 0.72);
-  border-radius: 16px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.26);
+.why-checks { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem 1.25rem; margin: 0 0 .75rem; padding: 0; }
+.stApp ul.why-checks > li {
+  margin: 0; padding: 0;
+  display: flex; align-items: baseline; gap: .4rem;
+  font-size: .875rem; line-height: 1.35; color: var(--fg);
 }
-.st-key-field-panel { padding: 20px; position: sticky; top: 118px; }
-.st-key-map-card,
-.st-key-criteria-card,
-.st-key-recs-card { overflow: hidden; }
-.st-key-recs-card { padding: 20px; }
-.st-key-field-panel { gap: 0.72rem !important; }
-.st-key-map-card,
-.st-key-criteria-card { gap: 0 !important; }
-.st-key-recs-card { gap: 0.9rem !important; }
-.st-key-method-card { gap: 0 !important; }
-.stHorizontalBlock > [data-testid="stColumn"]:nth-child(2) > [data-testid="stVerticalBlock"] {
-  gap: 1.5rem;
+.stApp ul.why-checks > li.no { color: var(--fg2); }
+.stApp ul.why-checks .ic { color: var(--good); transform: translateY(.12em); }
+.st-key-plan ul.why-checks .ic { color: #2F7A2B; }
+.stApp ul.why-checks > li.no .ic { color: var(--fg2); }
+.why-wrap { overflow-x: auto; }
+.stApp table.why {
+  width: 100%; border-collapse: collapse; border: 0;
+  font-size: .875rem; line-height: 1.3;
+  font-variant-numeric: tabular-nums lining-nums;
 }
+.stApp table.why th, .stApp table.why td {
+  padding: .4rem .75rem .4rem 0;
+  border: 0; border-bottom: 1px solid var(--rule);
+  text-align: left; vertical-align: baseline;
+  color: var(--fg); background: transparent;
+}
+.stApp table.why thead th { font-size: .75rem; font-weight: 600; color: var(--fg2); white-space: nowrap; }
+.stApp table.why tbody th { font-weight: 700; }
+.stApp table.why td.num { font-weight: 600; }
+.stApp p.why-note { margin-top: .45rem; font-size: .8125rem; line-height: 1.4; color: var(--fg2); }
+.stApp p.why-note b { color: var(--fg); font-weight: 650; }
 
-/* -------------------------------------------------------------- left panel */
-.fs-panel-head {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding-bottom: 11px;
-  border-bottom: 1px solid rgba(30, 41, 59, 0.8);
-  margin-bottom: 2px;
+/* ------------------------------------------------------------- corrections */
+.st-key-corrections { gap: .375rem !important; margin-top: 2rem; max-width: 34rem; }
+.st-key-corrections .group-head { margin-bottom: .375rem; }
+.st-key-refetch { margin-top: .75rem; }
+.st-key-problems { gap: .75rem !important; margin-top: 1.5rem; }
+.problem {
+  display: flex; gap: .625rem; align-items: baseline;
+  padding: .7rem .875rem;
+  border: 1.5px dashed var(--fg2);
+  border-radius: 3px;
+  font-size: .9375rem; line-height: 1.45; color: var(--fg);
 }
-.fs-panel-title { display: flex; align-items: center; gap: 9px; }
-.stApp .fs-panel-title h2 {
-  margin: 0; color: #fff; font-size: 11px; line-height: 1.2;
-  letter-spacing: 0.09em; text-transform: uppercase; font-weight: 700;
-}
-.fs-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
-.fs-dot-green { background: #34d399; box-shadow: 0 0 10px rgba(52, 211, 153, 0.55); }
-.fs-dot-amber { background: #fbbf24; box-shadow: 0 0 10px rgba(251, 191, 36, 0.4); }
-.fs-dot-rose { background: #fb7185; box-shadow: 0 0 10px rgba(251, 113, 133, 0.4); }
-.fs-dot-sky { background: #38bdf8; box-shadow: 0 0 10px rgba(56, 189, 248, 0.4); }
-.fs-dot-slate { background: #94a3b8; }
-.fs-code { color: var(--fs-muted); font: 500 10px 'JetBrains Mono', monospace; white-space: nowrap; }
+.problem + .problem { margin-top: .5rem; }
 
-.fs-section {
-  padding-top: 13px;
-  border-top: 1px solid rgba(30, 41, 59, 0.75);
+/* --------------------------------------------------------------- fine print */
+.fine { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem 4rem; margin-top: 1.5rem; }
+.stApp ul.fine-list { list-style: none; margin: .75rem 0 0; padding: 0; }
+.stApp ul.fine-list > li {
+  margin: 0; padding: .6rem 0;
+  border-top: 1px solid var(--rule);
+  font-size: .9375rem; line-height: 1.5; color: var(--ink);
+  max-width: 68ch;
 }
-.fs-section-head {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  margin-bottom: 3px;
+.stApp ul.fine-list b { font-weight: 700; }
+.ours {
+  margin-top: 2.25rem; padding: 1rem 1.125rem;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  max-width: 76ch;
 }
-.fs-label { color: #e2e8f0; font-size: 12px; font-weight: 650; line-height: 1.3; }
-.fs-link {
-  display: inline-flex; align-items: center; gap: 4px;
-  color: #34d399; font-size: 10.5px; font-weight: 500;
-  text-decoration: none !important; white-space: nowrap;
+.stApp .ours p { margin-top: .4rem; font-size: .9375rem; line-height: 1.5; color: var(--ink); }
+.foot {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .75rem 2rem;
+  margin-top: 2.5rem; padding: 1.125rem 0 2.25rem;
+  border-top: 1.5px solid var(--ink);
+  font-size: .8125rem; line-height: 1.5; color: var(--ink-2);
 }
-.stApp .fs-hint { color: var(--fs-muted); font-size: 10.5px; line-height: 1.45; margin: 3px 0 9px; }
+.stApp .foot p { max-width: 78ch; }
+.stApp .foot b { color: var(--ink); font-weight: 700; }
+.foot nav { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; }
+.stApp .foot a {
+  color: var(--ink); font-weight: 650;
+  text-decoration: underline; text-decoration-color: var(--barn);
+  text-decoration-thickness: 2px; text-underline-offset: .22em;
+}
+.stApp .foot a:hover { color: var(--barn); }
 
-.fs-coord-head {
-  display: flex; align-items: center; justify-content: space-between;
-  color: var(--fs-muted); font-size: 10px; margin-bottom: 1px;
+/* ------------------------------------------------------- Streamlit widgets */
+.stApp [data-testid="stWidgetLabel"] p {
+  font-size: .875rem; font-weight: 600; line-height: 1.3; color: var(--fg);
 }
-.fs-coord-head .fs-unit { color: #34d399; font-size: 10.5px; font-family: 'JetBrains Mono', monospace; }
-.st-key-coord-lat,
-.st-key-coord-lon {
-  background: var(--fs-bg);
-  border: 1px solid rgba(51, 65, 85, 0.8);
-  border-radius: 11px;
-  padding: 7px 10px 5px;
-  transition: border-color 0.15s ease;
-}
-.st-key-coord-lat:focus-within,
-.st-key-coord-lon:focus-within { border-color: var(--fs-brand); }
-.st-key-coord-lat [data-testid="stNumberInput"],
-.st-key-coord-lon [data-testid="stNumberInput"] { border: 0 !important; background: transparent !important; }
-.st-key-coord-lat [data-testid="stNumberInput"] input,
-.st-key-coord-lon [data-testid="stNumberInput"] input {
-  color: #fff !important;
-  font-family: 'JetBrains Mono', monospace !important;
-  font-size: 13px !important;
-  padding: 0 !important;
-  min-height: 22px !important;
-  background: transparent !important;
-}
-.st-key-coord-lat [data-testid="stNumberInput"] button,
-.st-key-coord-lon [data-testid="stNumberInput"] button {
-  color: #64748b !important;
+.stApp [data-testid="stNumberInputContainer"] {
   background: transparent !important;
   border: 0 !important;
-  padding: 0 1px !important;
-  min-height: 12px !important;
-  height: 12px !important;
+  border-bottom: 1.5px solid var(--fg) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
-.st-key-coord-lat [data-testid="stNumberInput"] button svg,
-.st-key-coord-lon [data-testid="stNumberInput"] button svg { width: 9px !important; height: 9px !important; }
-.st-key-coord-lat [data-testid="stNumberInput"] button:hover,
-.st-key-coord-lon [data-testid="stNumberInput"] button:hover { color: #fff !important; }
-
-.fs-slider-wrap { padding: 1px 0 0; }
-.fs-slider-label {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-  margin: 1px 0 -3px;
-}
-.fs-slider-label span:first-child {
-  color: #cbd5e1; font-size: 11px; font-weight: 500; line-height: 1.35;
-}
-.fs-slider-value {
-  color: #34d399;
-  font: 700 11px 'JetBrains Mono', monospace;
-}
-.fs-slider-scale {
-  display: flex; justify-content: space-between;
-  color: #64748b; font: 400 9px 'JetBrains Mono', monospace;
-  margin-top: -5px;
-}
-.stApp .fs-note {
-  display: flex; align-items: flex-start; gap: 6px;
-  color: rgba(251, 191, 36, 0.92);
-  font-size: 10.5px;
-  line-height: 1.45;
-  margin-top: 7px;
-}
-.fs-note svg { flex: 0 0 auto; margin-top: 1px; }
-
-/* Streamlit widgets inside the control panel */
-.st-key-field-panel [data-testid="stMultiSelect"] div[role="group"] {
-  background: var(--fs-bg) !important;
-  border: 1px solid rgba(51, 65, 85, 0.8) !important;
-  border-radius: 11px !important;
-  min-height: 42px;
-  transition: border-color 0.15s ease;
-}
-.st-key-field-panel [data-testid="stMultiSelect"] div[role="group"]:focus-within {
-  border-color: var(--fs-brand) !important;
-}
-.st-key-field-panel [data-testid="stMultiSelect"] input {
-  color: #fff !important;
-  font-size: 11px !important;
-}
-.st-key-field-panel [data-testid="stMultiSelectTagsContainer"] span[data-tag] {
-  background: rgba(244, 63, 94, 0.18) !important;
-  border: 1px solid rgba(244, 63, 94, 0.3) !important;
-  color: #fda4af !important;
-  border-radius: 6px !important;
-  font-size: 11px !important;
-  min-height: 24px !important;
-}
-.st-key-field-panel [data-testid="stMultiSelectTagsContainer"] span[data-tag-index="1"] {
-  background: rgba(245, 158, 11, 0.18) !important;
-  border-color: rgba(245, 158, 11, 0.3) !important;
-  color: #fcd34d !important;
-}
-.st-key-field-panel [data-testid="stMultiSelectTagsContainer"] span[data-tag-index="2"] {
-  background: rgba(56, 189, 248, 0.18) !important;
-  border-color: rgba(56, 189, 248, 0.3) !important;
-  color: #7dd3fc !important;
-}
-.st-key-field-panel [data-testid="stMultiSelectTagsContainer"] span[data-tag] span {
-  color: inherit !important;
-  font-size: 11px !important;
-}
-.st-key-field-panel [data-testid="stMultiSelect"] button[aria-label="Clear all"] {
+.stApp [data-testid="stNumberInputField"] {
+  padding: .2rem 0 .25rem !important;
   background: transparent !important;
-  color: #64748b !important;
-  width: 20px !important;
-  height: 20px !important;
-  min-height: 20px !important;
+  color: var(--fg) !important;
+  font-size: 1.0625rem !important; font-weight: 650 !important;
+  font-variant-numeric: tabular-nums lining-nums;
 }
-.st-key-field-panel [data-testid="stMultiSelect"] button[aria-label="Clear all"]:hover { color: #fff !important; }
+.stApp [data-testid="stNumberInputContainer"]:focus-within { border-bottom-color: var(--barn) !important; }
+.stApp [data-testid="stNumberInputContainer"] button { color: var(--fg2) !important; background: transparent !important; }
 
-.st-key-field-panel [data-testid="stWidgetLabel"] p {
-  color: #e2e8f0 !important;
-  font-size: 12px !important;
-  font-weight: 620 !important;
+.stApp [data-testid="stMultiSelect"] [role="group"] {
+  min-height: 2.75rem;
+  background: var(--field) !important;
+  border: 1.5px solid var(--fg2) !important;
+  border-radius: 3px !important;
+  color: var(--fg) !important;
 }
-.st-key-field-panel [data-testid="stSlider"] [data-testid="stTickBar"],
-.st-key-field-panel [data-testid="stSliderTickBar"],
-.st-key-field-panel [data-testid="stSliderThumbValue"] { display: none !important; }
-.st-key-field-panel [data-testid="stSlider"] [role="slider"] {
-  background: var(--fs-brand) !important;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.55);
-  border: 2px solid var(--fs-bg) !important;
+.stApp [data-testid="stMultiSelect"] [role="group"]:focus-within { border-color: var(--barn) !important; }
+.stApp [data-testid="stMultiSelect"] input { color: var(--fg) !important; font-size: .9375rem !important; }
+.stApp [data-testid="stMultiSelect"] input::placeholder { color: var(--fg2) !important; opacity: 1; }
+.stApp [data-testid="stMultiSelect"] button,
+.stApp [data-testid="stMultiSelect"] svg { color: var(--fg) !important; }
+.stApp span[data-tag] {
+  background: var(--fallow) !important;
+  color: var(--ink) !important;
+  border: 0 !important;
+  border-radius: 2px !important;
+  font-weight: 700 !important;
 }
-.st-key-field-panel [data-testid="stSlider"] [data-baseweb="slider"] > div > div {
-  background: var(--fs-700) !important;
-}
-.st-key-field-panel [data-testid="stSlider"] [data-testid="stThumbValue"] {
-  display: none !important;
-}
+.stApp span[data-tag] span, .stApp span[data-tag] button { color: var(--ink) !important; }
 
-.st-key-field-panel [data-testid="stCheckbox"] label {
-  align-items: flex-start;
-  gap: 8px;
-}
-.st-key-field-panel [data-testid="stCheckbox"] label p {
-  color: #cbd5e1 !important;
-  font-size: 11px !important;
-  line-height: 1.35 !important;
-}
-.st-key-field-panel [data-testid="stCheckbox"] label > div:first-of-type {
-  background: var(--fs-bg) !important;
-  border: 1px solid var(--fs-700) !important;
-  border-radius: 4px;
-}
-.st-key-field-panel [data-testid="stCheckbox"] label:has(input:checked) > div:first-of-type {
-  background: var(--fs-brand) !important;
-  border-color: var(--fs-brand) !important;
-  color: #020617 !important;
-}
-.st-key-field-panel [data-testid="stNumberInput"] > div {
-  background: var(--fs-bg) !important;
-  border-color: var(--fs-700) !important;
-  border-radius: 9px !important;
-}
-.st-key-field-panel [data-testid="stNumberInput"] input {
-  color: #fff !important; font-size: 11px !important;
-  font-family: 'JetBrains Mono', monospace !important;
-}
-.st-key-field-panel [data-testid="stNumberInputContainer"] > div:last-child {
-  display: flex !important;
-  flex-direction: column;
-  justify-content: center;
-  align-items: stretch;
-  gap: 2px;
-  width: 26px;
-  height: 100%;
-  padding: 3px 4px 3px 0;
-}
-.st-key-field-panel [data-testid="stNumberInput"] [data-testid="stNumberInputStepDown"],
-.st-key-field-panel [data-testid="stNumberInput"] [data-testid="stNumberInputStepUp"] {
-  width: 100% !important;
-  height: 15px !important;
-  min-height: 0 !important;
-  padding: 0 !important;
-  border: 1px solid var(--fs-700) !important;
-  border-radius: 4px !important;
-  background: rgba(30, 41, 59, 0.55) !important;
-  color: #94a3b8 !important;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-}
-.st-key-field-panel [data-testid="stNumberInput"] [data-testid="stNumberInputStepDown"]:hover,
-.st-key-field-panel [data-testid="stNumberInput"] [data-testid="stNumberInputStepUp"]:hover {
-  border-color: var(--fs-brand) !important;
-  background: var(--fs-brand) !important;
-  color: #020617 !important;
-}
-.st-key-field-panel [data-testid="stNumberInput"] [data-testid="stNumberInputStepDown"] svg,
-.st-key-field-panel [data-testid="stNumberInput"] [data-testid="stNumberInputStepUp"] svg {
-  width: 9px !important;
-  height: 9px !important;
-}
-
-.st-key-field-panel .stButton > button,
-.st-key-field-panel [data-testid="stButton"] > button {
-  width: 100%;
-  border: 0;
-  border-radius: 11px;
-  padding: 11px 16px;
-  background: linear-gradient(90deg, #10b981, #059669);
-  color: #020617;
-  font-size: 12.5px;
-  font-weight: 750;
-  box-shadow: 0 10px 24px rgba(5, 150, 105, 0.22);
-  transition: all 0.15s ease;
-}
-.st-key-field-panel .stButton > button:hover,
-.st-key-field-panel [data-testid="stButton"] > button:hover {
-  background: linear-gradient(90deg, #34d399, #10b981);
-  color: #020617;
-  box-shadow: 0 12px 28px rgba(16, 185, 129, 0.28);
-  transform: translateY(-1px);
-}
-.fs-model-line {
-  color: var(--fs-muted);
-  font: 400 10px 'JetBrains Mono', monospace;
-  text-align: center;
-  line-height: 1.4;
-}
-
-/* ---------------------------------------------------------------- map card */
-.st-key-map-card [data-testid="stVerticalBlock"] { gap: 0 !important; }
-.st-key-map-header {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(30, 41, 59, 0.8);
-  background: var(--fs-850);
-}
-.st-key-map-header [data-testid="stVerticalBlock"] { gap: 0 !important; }
-.fs-map-coords { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; }
-.fs-live {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #34d399; position: relative; flex: 0 0 auto;
-}
-.fs-live::after {
-  content: ''; position: absolute; inset: -4px; border-radius: 50%;
-  border: 1px solid rgba(52, 211, 153, 0.6);
-  animation: fs-ping 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-}
-@keyframes fs-ping {
-  0% { transform: scale(0.68); opacity: 0.9; }
-  70%, 100% { transform: scale(1.8); opacity: 0; }
-}
-.fs-map-title {
-  color: #fff; font-size: 10.5px; font-weight: 700;
-  letter-spacing: 0.07em; text-transform: uppercase; white-space: nowrap;
-}
-.fs-coord-chip {
-  display: inline-flex; align-items: center;
-  padding: 2px 8px;
-  border-radius: 5px;
-  border: 1px solid var(--fs-750);
-  background: var(--fs-bg);
-  color: #34d399;
-  font: 500 10.5px 'JetBrains Mono', monospace;
-  white-space: nowrap;
-}
-
-.st-key-map-header [data-testid="stRadio"] [role="radiogroup"] {
-  display: flex; flex-wrap: nowrap; align-items: center; gap: 1px;
-  padding: 2px;
-  border-radius: 8px;
-  border: 1px solid var(--fs-750);
-  background: var(--fs-bg);
-  width: fit-content;
-  margin-left: auto;
-  min-height: 0 !important;
-  height: auto !important;
-}
-.st-key-map-header [data-testid="stRadioOption"],
-.st-key-map-header [data-testid="stRadioOption"] > div {
-  min-height: 0 !important;
-  height: auto !important;
-}
-.st-key-map-header [data-testid="stRadioOption"] {
-  margin: 0 !important;
-  padding: 3px 8px !important;
-  border-radius: 6px;
-  color: var(--fs-muted) !important;
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-.st-key-map-header [data-testid="stRadioOption"]:hover { color: #fff !important; }
-.st-key-map-header [data-testid="stRadioOption"][data-selected="true"] {
-  background: var(--fs-brand);
-  color: #020617 !important;
-}
-.st-key-map-header [data-testid="stRadioOption"] > div > div:first-child { display: none !important; }
-.st-key-map-header [data-testid="stRadioOption"] p {
-  margin: 0 !important;
-  color: inherit !important;
-  font-size: 10px !important;
-  line-height: 1.2 !important;
-  white-space: nowrap;
-}
-.st-key-map-header [data-testid="stRadioOption"][data-selected="true"] p { font-weight: 700; }
-
-.st-key-map-card { position: relative; }
-.st-key-map-card iframe {
-  display: block;
-  border: 0;
-  border-radius: 0;
-  margin-top: -1px;
-}
-.st-key-map-card > div[data-testid="stElementContainer"]:last-child {
-  position: absolute;
-  left: 12px;
-  bottom: 36px;
-  z-index: 600;
-  width: auto;
-  height: auto;
-  pointer-events: none;
-}
-.fs-map-legend {
-  display: flex; align-items: center; gap: 7px;
-  width: fit-content;
-  padding: 5px 9px;
-  border: 1px solid rgba(51, 65, 85, 0.7);
-  border-radius: 7px;
-  background: rgba(11, 15, 23, 0.86);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
-  color: #cbd5e1;
-  font-size: 10px;
-  white-space: nowrap;
-}
-.fs-map-legend strong { color: #fff; }
-.fs-map-legend .fs-dot { width: 8px; height: 8px; }
-
-/* ----------------------------------------------------------- criteria card */
-.st-key-criteria-head { padding: 16px 18px 12px; border-bottom: 1px solid rgba(30, 41, 59, 0.8); }
-.st-key-criteria-head [data-testid="stVerticalBlock"] { gap: 0 !important; }
-.fs-card-title-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.stApp .fs-card-title { margin: 0; color: #fff; font-size: 15px; font-weight: 750; letter-spacing: -0.015em; }
-.fs-source-pill {
-  display: inline-flex; align-items: center;
-  padding: 2px 8px;
-  border-radius: 5px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  background: rgba(59, 130, 246, 0.1);
-  color: #60a5fa;
-  font-size: 10px; font-weight: 650;
-}
-.stApp .fs-card-sub { color: var(--fs-muted); font-size: 10.5px; line-height: 1.45; margin: 4px 0 0; }
-.st-key-criteria-head .stButton > button,
-.st-key-criteria-head [data-testid="stButton"] > button {
-  border: 0; background: transparent !important; color: #34d399 !important;
-  box-shadow: none !important; padding: 2px 0 !important;
-  font-size: 11px !important; font-weight: 600 !important;
-  white-space: nowrap;
-}
-.st-key-criteria-head .stButton > button:hover,
-.st-key-criteria-head [data-testid="stButton"] > button:hover { color: #6ee7b7 !important; }
-
-.fs-table-wrap { overflow-x: auto; }
-.fs-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.fs-table thead th {
-  padding: 9px 15px;
-  background: rgba(11, 15, 23, 0.62);
-  border-bottom: 1px solid var(--fs-750);
-  color: var(--fs-muted);
-  font: 500 9.5px 'JetBrains Mono', monospace;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-  text-align: left;
-  white-space: nowrap;
-}
-.fs-table tbody td {
-  padding: 9px 15px;
-  border-bottom: 1px solid rgba(30, 41, 59, 0.62);
-  vertical-align: middle;
-}
-.fs-table tbody tr:last-child td { border-bottom: 0; }
-.fs-table tbody tr:hover { background: rgba(23, 32, 51, 0.45); }
-.fs-name { color: #e2e8f0; font-weight: 550; line-height: 1.35; }
-.fs-name .fs-dot { margin-right: 6px; }
-.fs-sub { color: var(--fs-muted); font-weight: 400; }
-.fs-val {
-  color: #f1f5f9;
-  font: 600 11px 'JetBrains Mono', monospace;
-  white-space: nowrap;
-}
-.fs-unit { color: var(--fs-muted); font-weight: 400; font-size: 10px; }
-.fs-src { color: var(--fs-muted); font: 400 9.5px 'JetBrains Mono', monospace; white-space: nowrap; }
-.fs-src-inline { display: none; margin-top: 2px; color: var(--fs-muted); font: 400 9px 'JetBrains Mono', monospace; }
-.fs-missing { color: #fda4af; font-family: 'JetBrains Mono', monospace; }
-.fs-tags { display: flex; flex-wrap: wrap; gap: 4px; }
-.fs-tag {
-  display: inline-flex; align-items: center;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--fs-700);
-  background: var(--fs-bg);
-  color: #cbd5e1;
-  font: 400 9.5px 'JetBrains Mono', monospace;
-  white-space: nowrap;
-}
-.fs-badge {
-  display: inline-flex; align-items: center;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 9.5px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.fs-badge-green { background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
-.fs-badge-amber { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
-.fs-badge-rose { background: rgba(244, 63, 94, 0.1); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.2); }
-.fs-badge-sky { background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2); }
-.fs-badge-slate { background: rgba(51, 65, 85, 0.6); color: #cbd5e1; border: 1px solid rgba(71, 85, 105, 0.45); }
-
-.fs-problem {
-  display: flex; gap: 8px; align-items: flex-start;
-  margin: 10px 15px 0;
-  padding: 9px 11px;
-  border-radius: 8px;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  background: rgba(245, 158, 11, 0.07);
-  color: #fcd34d;
-  font-size: 10.5px;
-  line-height: 1.45;
-}
-.fs-problem strong { color: #fde68a; }
-.fs-problem-red { border-color: rgba(244, 63, 94, 0.25); background: rgba(244, 63, 94, 0.07); color: #fda4af; }
-
-.st-key-criteria-card [data-testid="stExpander"] {
-  margin: 0 15px 15px;
-  border: 1px solid rgba(51, 65, 85, 0.75);
-  border-radius: 9px;
-  background: var(--fs-bg);
-}
-.st-key-criteria-card [data-testid="stExpander"] summary {
-  padding: 8px 11px;
-  color: #cbd5e1;
-  font-size: 11px;
-}
-.st-key-criteria-card [data-testid="stExpander"] summary:hover { color: #fff; background: var(--fs-800); }
-
-/* --------------------------------------------------------- recommendations */
-.fs-recs-head {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--fs-750);
-  margin-bottom: 2px;
-}
-.fs-recs-title-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.stApp .fs-recs-title { margin: 0; color: #fff; font-size: 15px; font-weight: 750; letter-spacing: -0.015em; }
-.fs-ranked-pill {
-  display: inline-flex; align-items: center;
-  padding: 2px 8px; border-radius: 5px;
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
-  font-size: 10px; font-weight: 550;
-}
-.stApp .fs-recs-sub { color: var(--fs-muted); font-size: 10.5px; line-height: 1.45; margin: 4px 0 0; max-width: 660px; }
-.fs-count { color: var(--fs-muted); font: 400 10px 'JetBrains Mono', monospace; white-space: nowrap; padding-top: 4px; }
-
-.fs-baseline {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 10px 13px;
-  border-radius: 10px;
-  border: 1px solid rgba(51, 65, 85, 0.75);
-  background: var(--fs-bg);
-  flex-wrap: wrap;
-}
-.fs-baseline-main { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
-.fs-baseline-label { color: var(--fs-muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 650; }
-.fs-baseline-main strong { color: #fff; font-size: 13px; }
-.fs-baseline-metrics { display: flex; gap: 13px; flex-wrap: wrap; color: var(--fs-muted); font-size: 10px; }
-.fs-baseline-metrics b { color: #e2e8f0; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
-
-.fs-rec-card {
-  position: relative;
-  display: flex; flex-direction: column;
-  min-height: 312px;
-  height: 100%;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(51, 65, 85, 0.82);
-  background: var(--fs-bg);
+.stApp [data-testid="stRadio"] [role="radiogroup"] {
+  display: inline-flex; flex-wrap: nowrap; gap: 0 !important;
+  border: 1.5px solid var(--fg);
+  border-radius: 3px;
   overflow: hidden;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: fit-content;
 }
-.fs-rec-card:hover { border-color: #64748b; }
-.fs-rec-card.top {
-  border-color: rgba(16, 185, 129, 0.42);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 0 60px rgba(16, 185, 129, 0.025);
+.stApp [data-testid="stRadioOption"] {
+  margin: 0 !important; padding: .32rem .7rem !important;
+  min-height: 0 !important;
+  color: var(--fg); cursor: pointer;
+  transition: background-color .16s var(--ease), color .16s var(--ease);
 }
-.fs-rank {
-  position: absolute; top: 0; right: 0;
-  padding: 3px 9px 4px;
-  border-bottom-left-radius: 8px;
-  background: var(--fs-brand);
-  color: #020617;
-  font: 700 9px 'JetBrains Mono', monospace;
-  letter-spacing: 0.045em;
-  text-transform: uppercase;
-}
-.fs-rec-label { color: var(--fs-muted); font-size: 9.5px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
-.stApp .fs-rec-title {
-  margin: 3px 0 0;
-  color: #fff;
-  font-size: 15px;
-  line-height: 1.28;
-  font-weight: 750;
-  letter-spacing: -0.01em;
-}
-.fs-arrow { color: #34d399; padding: 0 1px; }
-.fs-score-row { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-.fs-big { color: #34d399; font: 800 28px 'JetBrains Mono', monospace; line-height: 1; letter-spacing: -0.05em; }
-.fs-rec-card:not(.top) .fs-big { color: #a7f3d0; }
-.fs-score-label { color: #cbd5e1; font-size: 10.5px; font-weight: 500; }
-.fs-delta { font: 500 9.5px 'JetBrains Mono', monospace; padding: 1px 5px; border-radius: 4px; }
-.fs-delta.up { color: #34d399; background: rgba(16, 185, 129, 0.1); }
-.fs-delta.down { color: #fb7185; background: rgba(244, 63, 94, 0.1); }
-.fs-delta.flat { color: var(--fs-muted); background: rgba(51, 65, 85, 0.5); }
+.stApp [data-testid="stRadioOption"] > div { min-height: 0 !important; }
+.stApp [data-testid="stRadioOption"] > div > div:first-child { display: none !important; }
+.stApp [data-testid="stRadioOption"] p { font-size: .8125rem !important; font-weight: 650; color: inherit !important; white-space: nowrap; }
+.stApp [data-testid="stRadioOption"]:hover { background: var(--field); }
+.stApp [data-testid="stRadioOption"][data-selected="true"] { background: var(--fg); color: var(--bg); }
+.stApp [data-testid="stRadioOption"]:has(input:focus-visible) { outline: 2px solid var(--ring, var(--gold)); outline-offset: 2px; }
 
-.fs-metrics {
-  margin-top: 11px;
-  padding-top: 9px;
-  border-top: 1px solid var(--fs-750);
-  display: grid;
-  gap: 4px;
-}
-.fs-metric-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: #cbd5e1; font-size: 10.5px; }
-.fs-metric-row strong { color: #e2e8f0; font: 600 10.5px 'JetBrains Mono', monospace; }
-.fs-metric-row .fs-good { color: #34d399; }
-.fs-metric-row .fs-warn { color: #fbbf24; }
-.stApp .fs-rec-why {
-  margin: 10px 0 0;
-  color: var(--fs-muted);
-  font-size: 10.5px;
-  line-height: 1.55;
-}
-.fs-rec-why strong { color: #cbd5e1; font-weight: 600; }
-
-/* five ranked cards share one row set that reflows with the viewport */
-.st-key-recs-card > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"] {
-  flex-wrap: wrap !important;
-  align-items: stretch !important;
-  gap: 14px !important;
-}
-.st-key-recs-card > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
-  flex: 0 1 calc(33.333% - 9.34px) !important;
-  width: auto !important;
-  min-width: 0 !important;
-}
-
-/* per-card expander reads as the card's action row */
-.st-key-recs-card > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"] [data-testid="stExpander"] {
-  margin-top: 4px;
-  border-radius: 9px;
-  border: 1px solid rgba(51, 65, 85, 0.8);
-  background: var(--fs-bg);
-  overflow: hidden;
-}
-.st-key-recs-card [data-testid="stExpander"] summary {
-  padding: 7px 11px;
-  color: #cbd5e1;
-  font-size: 10.5px;
+.stApp [data-testid="stBaseButton-secondary"] {
+  min-height: 0;
+  padding: .5rem .95rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
   font-weight: 650;
+  transition: background-color .18s var(--ease), transform .18s var(--ease);
 }
-.st-key-recs-card [data-testid="stExpander"] summary:hover { color: #fff; background: var(--fs-800); }
-.st-key-recs-card [data-testid="stExpander"] [data-testid="stExpanderDetails"] { padding: 0 11px 10px; }
+.stApp [data-testid="stBaseButton-secondary"]:hover { background: var(--gold); color: var(--ink); border-color: var(--ink); }
+.stApp [data-testid="stBaseButton-secondary"]:active { transform: translateY(1px); }
+.stApp [data-testid="stBaseButton-secondary"] p { font-size: .875rem; font-weight: 650; color: inherit; }
 
-.fs-checks { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 9px; }
-.fs-check {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 6px; border-radius: 4px;
-  font-size: 9.5px;
-  background: rgba(16, 185, 129, 0.09);
-  border: 1px solid rgba(16, 185, 129, 0.18);
-  color: #6ee7b7;
-}
-.fs-check.no { background: rgba(51, 65, 85, 0.45); border-color: rgba(71, 85, 105, 0.4); color: #94a3b8; }
-.fs-detail-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-.fs-detail-table th {
-  padding: 4px 5px; text-align: left; color: var(--fs-muted);
-  font: 500 8.5px 'JetBrains Mono', monospace; text-transform: uppercase;
-  border-bottom: 1px solid var(--fs-750); white-space: nowrap;
-}
-.fs-detail-table td { padding: 4px 5px; border-bottom: 1px solid rgba(30, 41, 59, 0.6); color: #cbd5e1; }
-.fs-detail-table td:first-child { color: #fff; font-weight: 550; }
-.fs-detail-table td.num { font-family: 'JetBrains Mono', monospace; }
-.fs-crop-note { margin-top: 5px; color: var(--fs-muted); font-size: 9px; line-height: 1.4; }
-.fs-crop-note strong { color: #cbd5e1; }
+.stApp [data-testid="stCheckbox"] label p { font-size: .9375rem; font-weight: 500; color: var(--fg); }
 
-.fs-info {
-  padding: 12px 13px;
-  border-radius: 9px;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  background: rgba(245, 158, 11, 0.07);
-  color: #fcd34d;
-  font-size: 11px;
-  line-height: 1.5;
+.stApp [data-testid="stSlider"] [data-testid="stSliderThumbValue"] p {
+  font: 800 1.0625rem/1 var(--display); color: var(--fg);
 }
+.stApp [data-testid="stSlider"] [data-testid="stSliderTickBar"] { color: var(--fg2); font-size: .75rem; }
 
-/* --------------------------------------------------------------- footer */
-.st-key-method-card [data-testid="stExpander"] {
-  border: 1px solid rgba(51, 65, 85, 0.72);
-  border-radius: 12px;
-  background: var(--fs-850);
+.stApp [data-testid="stExpander"] details {
+  border: 0; border-radius: 0; background: transparent;
+  border-top: 1px solid var(--rule);
 }
-.st-key-method-card [data-testid="stExpander"] summary {
-  padding: 11px 14px;
-  color: #cbd5e1;
-  font-size: 11.5px;
-  font-weight: 600;
+.st-key-ranked [data-testid="stExpander"] details { border-top: 0; }
+.stApp [data-testid="stExpander"] summary,
+.stApp [data-testid="stExpander"] summary:hover,
+.stApp [data-testid="stExpander"] summary:focus,
+.stApp [data-testid="stExpander"] summary:active,
+.stApp [data-testid="stExpander"] details[open] > summary {
+  background: transparent !important;
 }
-.st-key-method-card [data-testid="stExpander"] summary:hover { color: #fff; }
-.st-key-method-card [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
-  padding: 0 14px 12px;
-  color: var(--fs-muted);
-  font-size: 11px;
-  line-height: 1.6;
+.stApp [data-testid="stExpander"] summary {
+  padding: .5rem 0;
+  color: var(--fg);
+  transition: color .16s var(--ease);
 }
-.st-key-method-card [data-testid="stExpanderDetails"] p,
-.st-key-method-card [data-testid="stExpanderDetails"] li {
-  color: var(--fs-muted) !important;
-  font-size: 11px !important;
-  line-height: 1.6 !important;
-}
-.st-key-method-card li { margin-bottom: 3px; color: var(--fs-muted); font-size: 11px; }
-.st-key-method-card strong { color: #cbd5e1; }
+.stApp [data-testid="stExpander"] summary p { font-size: .9375rem; font-weight: 650; color: inherit; }
+.stApp [data-testid="stExpander"] summary:hover { color: var(--gold); }
+.st-key-plan [data-testid="stExpander"] summary:hover { color: var(--barn); }
+.stApp [data-testid="stExpander"] summary svg, .stApp [data-testid="stExpander"] summary [data-testid="stIconMaterial"] { color: inherit; }
+.stApp [data-testid="stExpanderDetails"] { padding: .25rem 0 .75rem; }
 
-.fs-footer {
-  margin: 28px calc(50% - 50vw) -40px;
-  padding: 17px max(24px, calc(50vw - 656px));
-  border-top: 1px solid rgba(30, 41, 59, 0.8);
-  background: var(--fs-850);
-  text-align: center;
-}
-.fs-footer-inner {
-  max-width: 1312px; margin: 0 auto;
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; flex-wrap: wrap;
-  color: var(--fs-muted); font-size: 10px;
-}
-.fs-footer-left { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.fs-footer-left strong { color: #cbd5e1; font-weight: 600; }
-.fs-footer-links { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
-.fs-footer-links a { color: var(--fs-muted); text-decoration: none !important; transition: color 0.15s ease; }
-.fs-footer-links a:hover { color: #34d399; }
+/* ----------------------------------------------------------------- loading */
+.loading { display: grid; gap: .875rem; }
+.stApp ol.strips.is-loading > li { animation: seed 1.6s var(--ease) infinite; animation-delay: calc(var(--i) * 160ms); }
+.stApp .loading p { font-size: .9375rem; line-height: 1.45; color: var(--ink); }
 
-@media (max-width: 1279px) {
-  .st-key-recs-card > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
-    flex-basis: calc(50% - 7px) !important;
+/* ------------------------------------------------------------------ motion */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(1.1rem); filter: blur(5px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes settle {
+  from { opacity: 0; transform: translateY(1.5rem) rotate(-.5deg); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sweep {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes plant0 {
+  from { clip-path: polygon(.5rem 0, .5rem 0, 0 100%, 0 100%); }
+  to { clip-path: polygon(.5rem 0, 100% 0, calc(100% - .5rem) 100%, 0 100%); }
+}
+@keyframes plant1 {
+  from { clip-path: polygon(.5rem 0, .5rem 0, 0 100%, 0 100%); }
+  to { clip-path: polygon(.5rem 0, 100% 0, calc(100% - .5rem) 100%, 0 100%); }
+}
+@keyframes seed {
+  0%, 100% { background: var(--fallow); }
+  25% { background: var(--corn); }
+  50% { background: var(--grain); }
+  75% { background: var(--squash); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stApp *, .stApp *::before, .stApp *::after {
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
   }
+  [data-testid="stMain"] { scroll-behavior: auto; }
 }
 
-@media (max-width: 991px) {
-  .fs-header { position: static; }
-  .st-key-field-panel { position: static; }
-  .fs-brand p { display: none; }
-  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-field-panel) {
+/* -------------------------------------------------------------- responsive */
+@media (max-width: 62rem) {
+  .hero, .intro { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .hero { row-gap: .75rem; }
+  .st-key-hero-cols > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {
     flex-direction: column !important;
-    gap: 1.25rem !important;
   }
-  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-field-panel) > [data-testid="stColumn"] {
-    flex: 1 1 100% !important;
-    width: 100% !important;
-    min-width: 0 !important;
+  .st-key-hero-cols > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    width: 100% !important; flex: 1 1 auto !important; min-width: 0 !important;
   }
+  .sch-head { display: none; }
+  .sch-row { grid-template-columns: 2.75rem minmax(0, 1fr); row-gap: .75rem; }
+  .stApp dl.sch-nums { grid-column: 1 / -1; grid-template-columns: 1.4fr 1fr 1fr 1.2fr 1fr; }
 }
-
-@media (max-width: 640px) {
-  [data-testid="stAppViewBlockContainer"],
-  [data-testid="stMainBlockContainer"],
-  .block-container { padding-left: 12px; padding-right: 12px; }
-  .fs-header { padding-left: 12px; padding-right: 12px; }
-  .fs-footer { padding-left: 12px; padding-right: 12px; }
-  .fs-header-actions .fs-top-btn span { display: none; }
-  .st-key-map-card > div[data-testid="stElementContainer"]:last-child { bottom: 54px; }
-  .st-key-recs-card > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+@media (max-width: 52rem) {
+  .ledgers, .ledgers.is-three, .fine { grid-template-columns: minmax(0, 1fr); }
+  .ledgers { row-gap: 0; }
+  .ledgers > div + div { margin-top: 1.75rem; }
+  .stApp .ledgers > ul.ledger + ul.ledger { margin-top: 0; }
+  .stApp .ledgers > ul.ledger + ul.ledger > li:first-child { border-top: 0; }
+}
+@media (max-width: 40rem) {
+  .st-key-plate-controls > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {
+    flex-direction: row !important; flex-wrap: wrap !important; gap: .75rem 1rem !important;
+  }
+  .st-key-plate-controls > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    flex: 1 1 7.5rem !important; width: auto !important; min-width: 7.5rem !important;
+  }
+  .st-key-plate-controls > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {
     flex-basis: 100% !important;
   }
-
-  /* keep the four-column criteria table readable instead of clipped */
-  .fs-table-wrap { overflow-x: auto; }
-  .fs-table { min-width: 0; font-size: 10px; }
-  .fs-table thead th {
-    padding: 7px 6px;
-    font-size: 8px;
-    letter-spacing: 0.03em;
-    white-space: normal;
-  }
-  .fs-table tbody td { padding: 8px 6px; }
-  .fs-table thead th:last-child,
-  .fs-table tbody td:last-child { display: none; }
-  .fs-src-inline { display: block; }
-  .fs-name { font-size: 10px; }
-  .fs-name .fs-dot { margin-right: 4px; }
-  .fs-val { font-size: 10px; white-space: normal; }
-  .fs-unit { font-size: 9px; }
-  .fs-badge { font-size: 8.5px; padding: 2px 5px; white-space: normal; line-height: 1.25; }
-  .fs-tag { font-size: 9px; }
-  .fs-table th:nth-child(2), .fs-table td:nth-child(2) { width: 68px; }
-  .fs-table th:nth-child(3), .fs-table td:nth-child(3) { width: 86px; }
+}
+@media (max-width: 40rem) {
+  .st-key-priorities > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] { gap: .25rem !important; }
+  .st-key-plan { padding: 1.125rem 1rem 1rem; }
+  .sch-row { grid-template-columns: minmax(0, 1fr); row-gap: .5rem; }
+  .sch-rank { font-size: 1.625rem; }
+}
+@media (max-width: 36rem) {
+  .mast-nav { margin-left: 0; width: 100%; }
+  .stApp dl.sch-nums { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: .6rem; }
+  .why-checks { grid-template-columns: minmax(0, 1fr); }
+  .stApp ol.strips > li { padding-left: .65rem; padding-right: .25rem; }
+  .shift-row.is-next .shift-score { font-size: 1.75rem; }
 }
 </style>
 """
 
-ICON_GLOBE = """<svg width="21" height="21" viewBox="0 0 24 24" fill="none"
-stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-<path d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-.778.099-1.533.284-2.253"/></svg>"""
-ICON_FORK = """<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>"""
-ICON_GITHUB = """<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-<path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>"""
-ICON_INFO = """<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>"""
-ICON_PIN = """<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>"""
-ICON_ALERT = """<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>"""
-ICON_BOLT = "⚡"
+# one tag colour per crop in "What do you grow now?", matching its strip ink
+CSS_TAGS = "<style>" + "".join(
+    f'.stApp span[data-tag][aria-label="{name}"]{{background:var(--{GROUPS[c["group"]][0]})!important;}}'
+    for name, c in CROPS.items()) + "</style>"
+
+ICONS = {
+    "check": '<path d="M3 8.6l3.1 3L13 4.6"/>',
+    "cross": '<path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/>',
+    "down": '<path d="M8 2.6v10.6M3.9 9.3L8 13.4l4.1-4.1"/>',
+    "plus": '<path d="M8 3v10M3 8h10"/>',
+    "legume": '<path d="M8 14V7.2M8 9.6C5.4 9.6 3.9 8 3.9 5.5 6.5 5.5 8 7.1 8 9.6zM8 7.2c0-2.3 1.4-3.8 3.8-3.8 0 2.4-1.5 3.8-3.8 3.8z"/>',
+    "sod": '<path d="M2.4 13.6h11.2M8 13.6V5.8M5.2 13.6c0-2.6-.9-4.2-2.2-5.2M10.8 13.6c0-2.6.9-4.2 2.2-5.2"/>',
+    "residue": '<path d="M2.4 13.6h11.2M4.8 13.6V9.2M8 13.6V7.4M11.2 13.6V9.2M4.8 9.2L3.6 8M8 7.4l1.2-1.3M11.2 9.2l1.2-1.2"/>',
+    "alert": '<path d="M8 2.6l5.8 10.4H2.2zM8 6.6v3.2M8 11.6v.2"/>',
+}
+
+MARK = ('<svg width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">'
+        '<path d="M1 8C9 1 15 9 23 5s9-3 12-1v5c-4-3-7-2-12 1S9 6 1 13z" fill="#EFBB3F"/>'
+        '<path d="M1 14c8-7 14 1 22-3s9-3 12-1v5c-4-3-7-2-12 1S9 12 1 19z" fill="#F7F0DD"/>'
+        '<path d="M1 20c8-7 14 1 22-3s9-3 12-1v5c-4-3-7-2-12 1S9 18 1 24z" fill="#E58238"/></svg>')
 
 
 # --------------------------------------------------------------------- helpers
@@ -996,435 +917,351 @@ def esc(value) -> str:
     return html.escape(str(value), quote=True)
 
 
-def fmt_num(value, digits: int = 1) -> str:
-    if value is None:
-        return '<span class="fs-missing">missing</span>'
-    if isinstance(value, bool):
-        return "yes" if value else "no"
+def emit(body: str) -> None:
+    """Write a block of HTML. Blank or indented lines would end Markdown's raw-HTML block."""
+    text = "\n".join(line.strip() for line in body.splitlines() if line.strip())
     try:
-        return f"{float(value):,.{digits}f}" if digits else f"{round(float(value)):,}"
+        st.markdown(text, unsafe_allow_html=True, anchors=False)
+    except TypeError:  # Streamlit before the anchors option
+        st.markdown(text, unsafe_allow_html=True)
+
+
+def icon(name: str, size: int = 16, label: str = "") -> str:
+    a11y = f'role="img" aria-label="{esc(label)}"' if label else 'aria-hidden="true"'
+    title = f"<title>{esc(label)}</title>" if label else ""
+    return (f'<svg class="ic" width="{size}" height="{size}" viewBox="0 0 16 16" {a11y}>'
+            f"{title}{ICONS[name]}</svg>")
+
+
+def fmt_num(value, digits: int = 1, signed: bool = False) -> str:
+    try:
+        number = float(value)
     except (TypeError, ValueError):
         return esc(value)
+    if signed:
+        return f"{number:+,.{digits}f}"
+    return f"{number:,.{digits}f}" if digits else f"{round(number):,}"
 
 
-def value_html(value, digits: int = 1, unit: str = "") -> str:
-    out = fmt_num(value, digits)
-    if unit and value is not None:
-        out += f' <span class="fs-unit">{esc(unit)}</span>'
-    return out
+def join_words(items) -> str:
+    items = [str(x) for x in items]
+    if len(items) <= 1:
+        return "".join(items)
+    return ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def badge(text: str, tone: str) -> str:
-    return f'<span class="fs-badge fs-badge-{tone}">{esc(text)}</span>'
+def coord_text(lat: float, lon: float) -> str:
+    return (f"{abs(lat):.3f}° {'N' if lat >= 0 else 'S'}, "
+            f"{abs(lon):.3f}° {'E' if lon >= 0 else 'W'}")
 
 
-def dot(tone: str = "green") -> str:
-    return f'<span class="fs-dot fs-dot-{tone}"></span>'
-
-
-def ordinal_percentile(value) -> str:
-    if value is None:
-        return "missing"
-    n = float(value)
-    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(int(n) % 10, "th")
-    return f"{n:.1f}{suffix} percentile"
-
-
-def groundwater_now_status(value):
-    if value is None:
-        return "Missing", "slate", "slate"
-    if value < 10:
-        return "Severe Deficit", "rose", "rose"
-    if value < 30:
-        return "Deficit / Dry", "amber", "amber"
-    if value <= 65:
-        return "Normal Baseline", "green", "green"
-    if value <= 80:
-        return "Above Normal", "sky", "sky"
-    return "Very Wet", "sky", "sky"
-
-
-def groundwater_mean_status(value):
-    if value is None:
-        return "Missing", "slate", "slate"
-    if value < 25:
-        return "Below Normal", "amber", "amber"
-    if value <= 75:
-        return "Normal Baseline", "green", "green"
-    return "Above Normal", "sky", "sky"
-
-
-def slope_status(value):
-    if value is None:
-        return "Missing", "slate", "slate"
-    if value < 2:
-        return "Minimal Runoff Risk", "slate", "slate"
-    if value <= 5:
-        return "Moderate Slope", "amber", "amber"
-    return "Erosion Risk", "rose", "rose"
-
-
-def temp_change_status(value):
-    if value is None:
-        return "Missing", "slate", "slate"
-    if value < 0:
-        return "Cooling Trend", "sky", "sky"
-    if value < 0.3:
-        return "Stable", "slate", "slate"
-    if value < 1.0:
-        return "Warming Trend", "rose", "rose"
-    return "Strong Warming", "rose", "rose"
-
-
-def rain_change_status(value):
-    if value is None:
-        return "Missing", "slate", "slate"
-    if value > 2:
-        return "Wetter Trend", "green", "green"
-    if value > -2:
-        return "Near Normal", "slate", "slate"
-    if value > -5:
-        return "Slight Decrease", "amber", "amber"
-    return "Drying Trend", "rose", "rose"
-
-
-def clay_status(clay, sand):
-    if clay is None:
-        return "Missing", "slate", "slate"
-    texture = texture_class(clay, sand)
-    label = {"heavy": "Heavy texture", "light": "Light texture",
-             "medium": "Medium texture"}.get(texture, "Texture unknown")
-    return label, "slate", "slate"
-
-
-def sand_status(value):
-    if value is None:
-        return "Missing", "slate", "slate"
-    if value > 65:
-        return "Fast drainage", "amber", "amber"
-    if value >= 35:
-        return "Balanced drainage", "slate", "slate"
-    return "Slow drainage", "amber", "amber"
-
-
-def soc_status(value):
-    if value is None:
-        return "Missing", "slate", "slate"
-    if value < 10:
-        return "Depleted / Needs Carbon", "amber", "amber"
-    if value < 20:
-        return "Moderate Carbon", "slate", "slate"
-    return "Carbon-rich", "green", "green"
-
-
-def ph_status(value):
-    if value is None:
-        return "Missing", "slate", "slate"
-    if 5.5 <= value <= 7.5:
-        return "Optimal Range", "green", "green"
-    if 5.0 <= value <= 8.0:
-        return "Acceptable", "amber", "amber"
-    return "Out of Range", "rose", "rose"
-
-
-def extra_status(key: str, value):
-    if value is None:
-        return "Missing", "slate"
+# ------------------------------------------------------------------- verdicts
+# The cut-offs below are the team's own rules of thumb. They are shown beside the
+# measurements for quick reading and never enter the ranking.
+def verdict_for(key: str, c: dict):
+    """Return (label, tone) for one criterion, or None when there is nothing to say."""
+    v = c.get(key)
+    if v is None:
+        return None
+    if key == "c10_groundwater_percentile_latest":
+        if v < 10:
+            return "Severe deficit", "concern"
+        if v < 30:
+            return "Deficit / dry", "watch"
+        if v <= 65:
+            return "Normal baseline", "good"
+        if v <= 80:
+            return "Above normal", "note"
+        return "Very wet", "note"
+    if key == "c10_groundwater_percentile_10yr_mean":
+        if v < 25:
+            return "Below normal", "watch"
+        if v <= 75:
+            return "Normal baseline", "good"
+        return "Above normal", "note"
+    if key == "c11_slope_pct":
+        if v < 2:
+            return "Minimal runoff risk", "plain"
+        if v <= 5:
+            return "Moderate slope", "watch"
+        return "Erosion risk", "concern"
+    if key == "c14_season_temp_change_2040_c":
+        if v < 0:
+            return "Cooling trend", "note"
+        if v < 0.3:
+            return "Stable", "plain"
+        if v < 1.0:
+            return "Warming trend", "concern"
+        return "Strong warming", "concern"
+    if key == "c15_annual_rain_change_2040_pct":
+        if v > 2:
+            return "Wetter trend", "good"
+        if v > -2:
+            return "Near normal", "plain"
+        if v > -5:
+            return "Slight decrease", "watch"
+        return "Drying trend", "concern"
+    if key == "c16_clay_pct":
+        texture = texture_class(v, c.get("c16_sand_pct"))
+        return {"heavy": "Heavy texture", "light": "Light texture",
+                "medium": "Medium texture"}.get(texture, "Texture unknown"), "plain"
+    if key == "c16_sand_pct":
+        if v > 65:
+            return "Fast drainage", "watch"
+        if v >= 35:
+            return "Balanced drainage", "plain"
+        return "Slow drainage", "watch"
+    if key == "c17_soil_organic_carbon_g_per_kg":
+        if v < 10:
+            return "Depleted / needs carbon", "watch"
+        if v < 20:
+            return "Moderate carbon", "plain"
+        return "Carbon-rich", "good"
+    if key == "c18_soil_ph":
+        if 5.5 <= v <= 7.5:
+            return "Optimal range", "good"
+        if 5.0 <= v <= 8.0:
+            return "Acceptable", "watch"
+        return "Out of range", "concern"
     if key == "c03_heat_days_per_season":
-        if value > 45:
-            return "Heat Stress", "rose"
-        if value > 25:
-            return "Warm Season", "amber"
-        return "Measured", "slate"
+        if v > 45:
+            return "Heat stress", "concern"
+        if v > 25:
+            return "Warm season", "watch"
+        return None
     if key == "c04_frost_free_days":
-        if value >= 180:
-            return "Long Season", "green"
-        if value >= 120:
-            return "Adequate Season", "slate"
-        return "Short Season", "amber"
+        if v >= 180:
+            return "Long season", "good"
+        if v >= 120:
+            return "Adequate season", "plain"
+        return "Short season", "watch"
     if key == "c06_aridity_index":
-        if value < 0.05:
-            return "Hyper-arid", "rose"
-        if value < 0.2:
-            return "Arid", "rose"
-        if value < 0.5:
-            return "Semi-arid", "amber"
-        if value < 0.65:
-            return "Dry sub-humid", "amber"
-        return "Humid / Sub-humid", "green"
+        if v < 0.05:
+            return "Hyper-arid", "concern"
+        if v < 0.2:
+            return "Arid", "concern"
+        if v < 0.5:
+            return "Semi-arid", "watch"
+        if v < 0.65:
+            return "Dry sub-humid", "watch"
+        return "Humid / sub-humid", "good"
     if key == "c07_season_rain_cv":
-        if value < 0.2:
-            return "Stable Rainfall", "green"
-        if value < 0.3:
-            return "Variable Rainfall", "amber"
-        return "Highly Variable", "rose"
+        if v < 0.2:
+            return "Stable rainfall", "good"
+        if v < 0.3:
+            return "Variable rainfall", "watch"
+        return "Highly variable", "concern"
     if key == "c08_root_zone_wetness_0to1":
-        if value < 0.3:
-            return "Dry Root Zone", "amber"
-        if value <= 0.6:
-            return "Moderate Moisture", "slate"
-        return "Wet Root Zone", "green"
+        if v < 0.3:
+            return "Dry root zone", "watch"
+        if v <= 0.6:
+            return "Moderate moisture", "plain"
+        return "Wet root zone", "good"
     if key == "c09_dry_years":
-        n = len(value) if isinstance(value, (list, tuple)) else 0
-        return (f"{n} dry season{'s' if n != 1 else ''}", "amber" if n >= 3 else "slate")
-    return "Measured", "slate"
+        n = len(v) if isinstance(v, (list, tuple)) else 0
+        return f"{n} dry season{'s' if n != 1 else ''}", "watch" if n >= 3 else "plain"
+    return None
 
 
-def table_row(label, value, status, tone, source, *, note="", dot_tone=None) -> str:
-    dot_html = dot(dot_tone) if dot_tone else ""
-    note_html = f' <span class="fs-sub">{esc(note)}</span>' if note else ""
-    return (
-        f'<tr><td class="fs-name">{dot_html}{esc(label)}{note_html}'
-        f'<span class="fs-src-inline">{esc(source)}</span></td>'
-        f'<td class="fs-val">{value}</td>'
-        f"<td>{badge(status, tone)}</td>"
-        f'<td class="fs-src">{esc(source)}</td></tr>'
-    )
+def verdict_html(label: str, tone: str) -> str:
+    return f'<span class="verdict v-{tone}"><i class="v-mark"></i>{esc(label)}</span>'
 
 
-def primary_criteria_html(fp: dict) -> str:
-    c = fp["criteria"]
-    rows: list[str] = []
+# -------------------------------------------------------------------- ledgers
+def is_filled(key: str, c: dict) -> bool:
+    value = c.get(key)
+    if key == "c19_crop_sequence":
+        return bool(value)
+    return value is not None
 
-    gw = c.get("c10_groundwater_percentile_latest")
-    status, tone, dot_tone = groundwater_now_status(gw)
-    rows.append(table_row(
-        "Groundwater wetness now",
-        fmt_num(gw, 1) + (f' <span class="fs-unit">percentile</span>' if gw is not None else ""),
-        status, tone, "NASA GRACE-FO", note="(0 driest – 100 wettest)", dot_tone=dot_tone))
 
-    gw10 = c.get("c10_groundwater_percentile_10yr_mean")
-    status, tone, dot_tone = groundwater_mean_status(gw10)
-    rows.append(table_row(
-        "Groundwater wetness, 10-year average",
-        fmt_num(gw10, 1) + (f' <span class="fs-unit">percentile</span>' if gw10 is not None else ""),
-        status, tone, "NASA GRACE / GRACE-FO", dot_tone=dot_tone))
-
-    slope = c.get("c11_slope_pct")
-    status, tone, dot_tone = slope_status(slope)
-    rows.append(table_row("Slope", value_html(slope, 1, "%"), status, tone, "NASA SRTM",
-                          dot_tone=dot_tone))
-
-    dt = c.get("c14_season_temp_change_2040_c")
-    status, tone, dot_tone = temp_change_status(dt)
-    rows.append(table_row("Projected temperature change by 2040",
-                          value_html(dt, 2, "°C"), status, tone, "NASA NEX-GDDP-CMIP6",
-                          dot_tone=dot_tone))
-
-    dr = c.get("c15_annual_rain_change_2040_pct")
-    status, tone, dot_tone = rain_change_status(dr)
-    rows.append(table_row("Projected rainfall change by 2040",
-                          value_html(dr, 1, "%"), status, tone, "NASA NEX-GDDP-CMIP6",
-                          dot_tone=dot_tone))
-
-    clay, sand = c.get("c16_clay_pct"), c.get("c16_sand_pct")
-    status, tone, dot_tone = clay_status(clay, sand)
-    rows.append(table_row("Soil clay", value_html(clay, 1, "%"), status, tone,
-                          "ISRIC SoilGrids 250m", dot_tone=dot_tone))
-
-    status, tone, dot_tone = sand_status(sand)
-    rows.append(table_row("Soil sand", value_html(sand, 1, "%"), status, tone,
-                          "ISRIC SoilGrids 250m", dot_tone=dot_tone))
-
-    soc = c.get("c17_soil_organic_carbon_g_per_kg")
-    status, tone, dot_tone = soc_status(soc)
-    rows.append(table_row("Soil organic carbon (SOC)", value_html(soc, 1, "g/kg"), status, tone,
-                          "ISRIC SoilGrids 250m", dot_tone=dot_tone))
-
-    ph = c.get("c18_soil_ph")
-    status, tone, dot_tone = ph_status(ph)
-    rows.append(table_row("Soil pH in H₂O", value_html(ph, 1, ""), status, tone,
-                          "ISRIC SoilGrids 250m", dot_tone=dot_tone))
-
-    seq = c.get("c19_crop_sequence") or {}
-    if seq:
-        tags = "".join(
-            f'<span class="fs-tag">{esc(year)}: {esc(name)}</span>'
-            for year, name in sorted(seq.items(), reverse=True))
+def ledger_row(key: str, c: dict, *, sub: bool = False, extra: str = "", note: str = "") -> str:
+    num, label, unit, digits, source = CRITERIA[key]
+    value = c.get(key)
+    if not is_filled(key, c):
+        val = '<span class="slot">missing</span>'
+    elif key == "c09_dry_years":
+        val = f"<b>{esc(', '.join(str(y) for y in value) or 'none')}</b>"
     else:
-        tags = '<span class="fs-missing">No field crop registered at this pixel</span>'
-    rows.append(
-        '<tr><td class="fs-name">Crops grown here, last 5 years'
-        '<span class="fs-src-inline">USDA Cropland Data Layer</span></td>'
-        f'<td class="fs-val" colspan="2"><div class="fs-tags">{tags}</div></td>'
-        '<td class="fs-src">USDA Cropland Data Layer</td></tr>')
-
-    return "".join(rows)
-
-
-def extra_criteria_html(fp: dict) -> str:
-    c = fp["criteria"]
-    rows = []
-    for key, label, unit, source in CRITERIA:
-        if key in PRIMARY_KEYS:
-            continue
-        value = c.get(key)
-        digits, display_unit = EXTRA_SPECS.get(key, (1, unit))
-        if key == "c09_dry_years":
-            years = value or []
-            value_html_str = esc(", ".join(str(y) for y in years)) if years else "none"
-        else:
-            value_html_str = value_html(value, digits, display_unit)
-        status, tone = extra_status(key, value)
-        rows.append(table_row(label, value_html_str, status, tone, source))
-    return "".join(rows)
+        val = f"<b>{fmt_num(value, digits, key in SIGNED)}</b>"
+        if unit:
+            val += f'<span class="lg-unit">{esc(unit)}</span>'
+    verdict = verdict_for(key, c)
+    verdict_part = verdict_html(*verdict) if verdict else ""
+    note_part = f" · {esc(note)}" if note else ""
+    extra_part = f'<div class="lg-extra">{extra}</div>' if extra else ""
+    return (f'<li class="lg-row{" lg-sub" if sub else ""}"><span class="lg-num">{esc(num)}</span>'
+            f'<div class="lg-main"><span class="lg-name">{esc(label)}</span>'
+            f'<span class="lg-lead" aria-hidden="true"></span><span class="lg-val">{val}</span></div>'
+            f'<div class="lg-meta"><span>{esc(source)}{note_part}</span>{verdict_part}</div>'
+            f"{extra_part}</li>")
 
 
-def criteria_summary(fp: dict) -> str:
-    c = fp["criteria"]
-    bits = []
-    gw = c.get("c10_groundwater_percentile_latest")
-    if gw is not None:
-        bits.append(f"groundwater wetness at the {float(gw):.1f} percentile")
-    texture = texture_class(c.get("c16_clay_pct"), c.get("c16_sand_pct"))
-    if texture:
-        bits.append(f"{texture}-textured soil")
-    soc = c.get("c17_soil_organic_carbon_g_per_kg")
-    if soc is not None:
-        bits.append(f"organic carbon at {float(soc):.1f} g/kg")
-    dt = c.get("c14_season_temp_change_2040_c")
-    dr = c.get("c15_annual_rain_change_2040_pct")
-    if dt is not None and dr is not None:
-        bits.append(f"a projected 2040 shift of {dt:+.2f} °C and {dr:+.1f}% rain")
-    if not bits:
-        return "Ranked from the criteria measured for this field and the priorities you set."
-    return "Calculated by aligning " + ", ".join(bits) + "."
+def slot_row(num: str, label: str, source: str) -> str:
+    return (f'<li class="lg-row"><span class="lg-num">{esc(num)}</span>'
+            f'<div class="lg-main"><span class="lg-name">{esc(label)}</span>'
+            f'<span class="lg-lead" aria-hidden="true"></span>'
+            f'<span class="lg-val"><span class="slot">not wired yet</span></span></div>'
+            f'<div class="lg-meta"><span>{esc(source)}</span></div></li>')
 
 
-def arrow_join(items) -> str:
-    return ' <span class="fs-arrow">➔</span> '.join(esc(x) for x in items)
+def history_bars(series: dict, *, marked=(), latest=None, ceiling=None, unit: str = "",
+                 label: str = "") -> str:
+    """Ten-year history as bars. series maps a year (or date) label to a value."""
+    if not series:
+        return ""
+    keys = sorted(series)
+    top = ceiling or max(series.values()) or 1
+    bars, ticks = [], []
+    for k in keys:
+        year = str(k)[:4]
+        cls = "is-now" if k == latest else "is-mark" if year in {str(m) for m in marked} else ""
+        height = max(3.0, min(100.0, 100 * float(series[k]) / top))
+        bars.append(f'<i class="{cls}" style="--h:{height:.0f}%" '
+                    f'title="{esc(year)}: {float(series[k]):.0f}{esc(unit)}"></i>')
+        ticks.append(f"<span>’{esc(year[2:])}</span>")
+    return (f'<div class="hist hist-bars" role="img" aria-label="{esc(label)}">{"".join(bars)}</div>'
+            f'<div class="hist hist-x" aria-hidden="true">{"".join(ticks)}</div>')
 
 
-def pct(value) -> str:
-    return f"{value * 100:.0f}%"
+# --------------------------------------------------------------------- strips
+def crop_marks(crop: dict) -> str:
+    marks = []
+    if crop["legume"]:
+        marks.append(icon("legume", 14, "legume"))
+    if crop["perennial"]:
+        marks.append(icon("sod", 14, "perennial sod crop"))
+    if crop["residue"] == "high":
+        marks.append(icon("residue", 14, "high residue"))
+    return f'<span class="strip-marks">{"".join(marks)}</span>' if marks else ""
 
 
-def delta_html(value, baseline_value, suffix: str = "vs now") -> str:
+def strips_html(rotation, *, slots: int | None = None, added=(), flip: int = 0,
+                delay_ms: int = 0, label: str = "") -> str:
+    """One rotation cycle as a row of year strips, coloured by functional group."""
+    cells = []
+    for i, name in enumerate(rotation):
+        crop = CROPS.get(name)
+        ink = GROUPS[crop["group"]][0] if crop else ""
+        tag = (f'<span class="strip-tag">{icon("plus", 11)}<span class="strip-tag-word">added</span></span>'
+               if name in added else "")
+        cells.append(
+            f'<li class="g-{ink}" style="--i:{i}"><span class="strip-top">'
+            f'<span class="strip-yr"><span class="strip-yr-word">Year </span>{i + 1}</span>{tag}</span>'
+            f'<span class="strip-crop">{esc(name)}{crop_marks(crop) if crop else ""}</span></li>')
+    for i in range(len(rotation), slots or len(rotation)):
+        cells.append(f'<li class="strip-empty" style="--i:{i}" aria-hidden="true"></li>')
+    return (f'<ol class="strips p{flip}" style="--n:{max(slots or 0, len(rotation))};--d:{delay_ms}ms" '
+            f'aria-label="{esc(label or " then ".join(rotation))}">{"".join(cells)}</ol>')
+
+
+def history_strips(seq: dict) -> str:
+    cells = []
+    for i, year in enumerate(sorted(seq)):
+        crop = CROPS.get(CDL_TO_CROP.get(seq[year], ""))
+        ink = GROUPS[crop["group"]][0] if crop else ""
+        cells.append(
+            f'<li class="g-{ink}" style="--i:{i}"><span class="strip-top">'
+            f'<span class="strip-yr">{esc(year)}</span></span>'
+            f'<span class="strip-crop">{esc(seq[year])}</span></li>')
+    return (f'<ol class="strips strips-hist p0" style="--n:{len(cells)}" '
+            f'aria-label="Crops by year">{"".join(cells)}</ol>')
+
+
+def delta_html(value, baseline_value) -> str:
     if baseline_value is None:
         return ""
     diff = value - baseline_value
     if abs(diff) < 0.005:
-        return '<span class="fs-delta flat">same as now</span>'
-    tone = "up" if diff > 0 else "down"
-    return f'<span class="fs-delta {tone}">{diff:+.2f} {esc(suffix)}</span>'
+        return '<span class="delta flat">same as now</span>'
+    return f'<span class="delta {"up" if diff > 0 else "down"}">{diff:+.2f} vs now</span>'
 
 
-def why_text(r: dict) -> str:
-    checks = r["soil_checks"]
-    met = [k for k, v in checks.items() if v]
-    unmet = [k for k, v in checks.items() if not v]
-    if met and unmet:
-        soil = (f"<strong>Meets {len(met)} of 4 soil-health checks</strong> "
-                f"({esc('; '.join(met))}). Not met: {esc(', '.join(unmet))}.")
-    elif met:
-        soil = "<strong>Meets all 4 soil-health checks.</strong>"
-    else:
-        soil = "No soil-health checks are met."
-
-    if r.get("fit_2040") is not None:
-        climate = (f"Climate fit averages <strong>{r['fit_today']:.2f}</strong> today and "
-                   f"<strong>{r['fit_2040']:.2f}</strong> under the projected 2040 climate.")
-    else:
-        climate = f"Climate fit averages <strong>{r['fit_today']:.2f}</strong> today."
-    water = (f"Average optimal-minimum rainfall is "
-             f"<strong>{r['mean_optimal_min_rain_mm']:.0f} mm</strong>.")
-    return f"{soil} {climate} {water}"
-
-
-def rec_card_html(r: dict, index: int, baseline: dict | None) -> str:
-    top = index == 0
-    labels = ["Recommended Cycle", "Alternative Option", "Additional Option",
-              "Further Option", "Further Option"]
-    label = labels[min(index, len(labels) - 1)]
-    rank = '<div class="fs-rank">#1 Ranked</div>' if top else ""
-
-    if baseline:
-        score_delta = delta_html(r["score"], baseline["score"])
-    else:
-        score_delta = '<span class="fs-delta flat">weighted score</span>'
-
-    fit_value = pct(r["fit"])
-    if baseline:
-        fit_value += " " + delta_html(r["fit"], baseline["fit"], suffix="")
-
-    soil_checks = sum(1 for v in r["soil_checks"].values() if v)
-    soil_value = f"{soil_checks}/4 checks"
-    if r["soil_health"] >= 0.999:
-        soil_tone = "fs-good"
-    elif r["soil_health"] >= 0.5:
-        soil_tone = "fs-warn"
-    else:
-        soil_tone = ""
-
-    water_value = f"{r['water_saving'] * 100:.0f}/100"
-
-    future_row = ""
-    if r.get("fit_2040") is not None:
-        future_row = (
-            '<div class="fs-metric-row"><span>2040 climate fit</span>'
-            f'<strong>{pct(r["fit_2040"])}</strong></div>')
-
+def schedule_row(r: dict, *, rank: int | None, baseline: dict | None, slots: int,
+                 current, flip: int) -> str:
+    met = sum(1 for ok in r["soil_checks"].values() if ok)
+    rank_html = (f'<div class="sch-rank">{rank}</div>' if rank
+                 else '<div class="sch-rank is-now">Now</div>')
+    added = [] if rank is None else [n for n in r["rotation"] if n not in current]
+    future = f'{r["fit_2040"]:.2f}' if r.get("fit_2040") is not None else '<span class="slot">missing</span>'
+    delta = delta_html(r["score"], baseline["score"]) if (baseline and rank) else ""
     return f"""
-<article class="fs-rec-card {'top' if top else ''}">
-  {rank}
-  <div>
-    <div class="fs-rec-label">{label}</div>
-    <h4 class="fs-rec-title">{arrow_join(r['rotation'])}</h4>
-    <div class="fs-score-row">
-      <span class="fs-big">{pct(r['score'])}</span>
-      <span class="fs-score-label">Weighted rotation score</span>
-    </div>
-    <div style="margin-top:4px;">{score_delta}</div>
-    <div class="fs-metrics">
-      <div class="fs-metric-row"><span>Climate fit</span><strong>{fit_value}</strong></div>
-      <div class="fs-metric-row"><span>Soil health</span><strong class="{soil_tone}">{soil_value}</strong></div>
-      <div class="fs-metric-row"><span>Water saving</span><strong>{water_value}</strong></div>
-      {future_row}
-    </div>
-    <p class="fs-rec-why">{why_text(r)}</p>
-  </div>
-</article>
-"""
-
-
-def crop_details_html(r: dict) -> str:
-    checks = r["soil_checks"]
-    check_tags = "".join(
-        f'<span class="fs-check{" no" if not ok else ""}">{"✓" if ok else "×"} {esc(name)}</span>'
-        for name, ok in checks.items())
-    has_future = any(c.get("fit_2040") is not None for c in r["crops"].values())
-    future_head = "<th>2040</th>" if has_future else ""
-    rows = []
-    notes = []
-    for name, c in r["crops"].items():
-        future_cell = f'<td class="num">{c["fit_2040"]:.2f}</td>' if has_future and c.get("fit_2040") is not None else ("<td>—</td>" if has_future else "")
-        rows.append(
-            f"<tr><td>{esc(name)}</td>"
-            f'<td class="num">{c["fit"]:.2f}</td>'
-            f'<td class="num">{c["dry_year_fit"]:.2f}</td>'
-            f"{future_cell}"
-            f"<td>{esc(c['limiting_factor'] or '—')}</td></tr>")
-        if c["notes"]:
-            notes.append(f'<div class="fs-crop-note"><strong>{esc(name)}:</strong> '
-                         f'{esc("; ".join(c["notes"]))}</div>')
-    return f"""
-<div class="fs-checks">{check_tags}</div>
-<div class="fs-table-wrap">
-<table class="fs-detail-table">
-  <thead><tr><th>Crop</th><th>Fit</th><th>Dry year</th>{future_head}<th>Limited by</th></tr></thead>
-  <tbody>{''.join(rows)}</tbody>
-</table>
+<div class="sch-row{' is-top' if rank == 1 else ''}">
+{rank_html}
+{strips_html(r['rotation'], slots=slots, added=added, flip=flip, delay_ms=(rank or 0) * 70)}
+<dl class="sch-nums">
+<div><dt>Overall score</dt><dd class="sch-score"><span class="sch-score-wrap">{r['score']:.2f}{delta}</span></dd></div>
+<div><dt>Climate fit</dt><dd>{r['fit']:.2f}</dd></div>
+<div><dt>Soil checks</dt><dd>{met} of 4</dd></div>
+<div><dt>Water saving</dt><dd>{r['water_saving']:.2f}</dd></div>
+<div><dt>Fit in 2040</dt><dd>{future}</dd></div>
+</dl>
 </div>
-{''.join(notes)}
 """
 
 
-def field_code(lat: float, lon: float) -> str:
-    return f"GRID {abs(lat):.2f}{'N' if lat >= 0 else 'S'} {abs(lon):.2f}{'E' if lon >= 0 else 'W'}"
+def why_html(r: dict) -> str:
+    checks = "".join(
+        f'<li class="{"" if ok else "no"}">{icon("check" if ok else "cross", 14, "met" if ok else "not met")}'
+        f"<span>{esc(name[:1].upper() + name[1:])}</span></li>"
+        for name, ok in r["soil_checks"].items())
+    has_future = any(c.get("fit_2040") is not None for c in r["crops"].values())
+    rows, notes = [], []
+    for name, c in r["crops"].items():
+        future = ""
+        if has_future:
+            future = (f'<td class="num">{c["fit_2040"]:.2f}</td>' if c.get("fit_2040") is not None
+                      else "<td>not available</td>")
+        rows.append(f'<tr><th scope="row">{esc(name)}</th><td class="num">{c["fit"]:.2f}</td>'
+                    f'<td class="num">{c["dry_year_fit"]:.2f}</td>{future}'
+                    f"<td>{esc(c['limiting_factor'] or 'nothing')}</td></tr>")
+        if c["notes"]:
+            notes.append(f'<p class="why-note"><b>{esc(name)}:</b> {esc("; ".join(c["notes"]))}</p>')
+    future_head = '<th scope="col">Fit in 2040</th>' if has_future else ""
+    return f"""
+<ul class="why-checks">{checks}</ul>
+<div class="why-wrap"><table class="why">
+<thead><tr><th scope="col">Crop</th><th scope="col">Fit</th><th scope="col">Dry-year fit</th>{future_head}<th scope="col">Limited by</th></tr></thead>
+<tbody>{''.join(rows)}</tbody>
+</table></div>
+{''.join(notes)}
+<p class="why-note">Average optimal-minimum rainfall for these crops is <b>{r['mean_optimal_min_rain_mm']:.0f} mm</b>.</p>
+"""
 
 
-def coord_text(lat: float, lon: float) -> str:
-    return f"{abs(lat):.3f}° {'N' if lat >= 0 else 'S'}, {abs(lon):.3f}° {'E' if lon >= 0 else 'W'}"
+def horizon_html(inks) -> str:
+    tops = ["M0 96C230 40 470 62 720 84S1200 126 1440 70",
+            "M0 130C250 78 520 100 760 118S1220 160 1440 106",
+            "M0 164C290 118 560 140 800 152S1240 194 1440 142",
+            "M0 198C320 156 600 178 840 186S1260 226 1440 178"]
+    bands = "".join(
+        f'<g class="hz-band" style="--i:{i}"><path d="{d}V240H0Z" fill="var(--{inks[i % len(inks)]})"/>'
+        + (f'<path class="hz-top" d="{d}"/>' if i == 0 else "")
+        + f'<path class="hz-row" d="{d}" transform="translate(0 12)"/>'
+        f'<path class="hz-row" d="{d}" transform="translate(0 23)"/></g>'
+        for i, d in enumerate(tops))
+    return ('<div class="horizon" aria-hidden="true"><svg viewBox="0 0 1440 240" '
+            f'preserveAspectRatio="none">{bands}'
+            '<path class="hz-ground" d="M0 228C340 198 640 212 880 218S1280 240 1440 210V240H0Z"/>'
+            "</svg></div>")
+
+
+CONTOUR = ('<div class="contour" aria-hidden="true"><svg viewBox="0 0 1200 20" '
+           'preserveAspectRatio="none"><path d="M0 12C200 2 400 20 600 10S1000 2 1200 12"/></svg></div>')
+WATER_TABLE = ('<div class="divide divide-water" aria-hidden="true"><svg viewBox="0 0 1440 56" '
+               'preserveAspectRatio="none">'
+               '<path class="dv-fill" d="M0 20C180 4 360 32 540 20S900 6 1080 22 1320 32 1440 16V56H0Z"/>'
+               '<path class="dv-line" d="M0 34C180 20 360 46 540 34S900 22 1080 36 1320 46 1440 30"/>'
+               '<path class="dv-line" d="M0 47C180 35 360 57 540 47S900 37 1080 49 1320 57 1440 43"/>'
+               "</svg></div>")
+SKYLINE = ('<div class="divide divide-rock from-sky" aria-hidden="true"><svg viewBox="0 0 1440 56" '
+           'preserveAspectRatio="none">'
+           '<path class="dv-fill" d="M0 34L150 14 300 30 470 10 640 28 810 12 990 32 1150 14 1300 28 1440 12V56H0Z"/>'
+           "</svg></div>")
+BEDROCK = ('<div class="divide divide-rock" aria-hidden="true"><svg viewBox="0 0 1440 56" '
+           'preserveAspectRatio="none">'
+           '<path class="dv-fill" d="M0 34L150 14 300 30 470 10 640 28 810 12 990 32 1150 14 1300 28 1440 12V56H0Z"/>'
+           "</svg></div>")
 
 
 # ---------------------------------------------------------------------- data
@@ -1438,7 +1275,7 @@ def site_data(lat: float, lon: float) -> dict:
 
 
 def make_map(lat: float, lon: float, style: str) -> folium.Map:
-    fmap = folium.Map(location=[lat, lon], zoom_start=10, tiles=None,
+    fmap = folium.Map(location=[lat, lon], zoom_start=13, tiles=None,
                       control_scale=True, prefer_canvas=True)
 
     satellite = ("https://tiles.maps.eox.at/wmts/1.0.0/"
@@ -1465,31 +1302,13 @@ def make_map(lat: float, lon: float, style: str) -> folium.Map:
             attr="Tiles &copy; Esri — Esri, DeLorme, NAVTEQ",
             max_zoom=18, control=False).add_to(fmap)
 
-    # 160 acres is about a 454 m radius circle.
+    # 160 acres is about a 454 m radius circle, drawn like an inked field line.
     folium.Circle(
-        [lat, lon], radius=454, color="#10b981", weight=1.6,
-        fill=True, fill_color="#10b981", fill_opacity=0.13).add_to(fmap)
+        [lat, lon], radius=454, color="#F7F0DD", weight=2, dash_array="7 6",
+        fill=True, fill_color="#D2452F", fill_opacity=0.14).add_to(fmap)
 
-    marker_html = """
-<div style="position:relative;width:44px;height:44px;">
-  <style>
-    @keyframes fs-marker-ping {
-      0% { transform: scale(0.55); opacity: 0.9; }
-      70%, 100% { transform: scale(1.55); opacity: 0; }
-    }
-  </style>
-  <span style="position:absolute;inset:3px;border-radius:50%;
-    border:1.5px solid rgba(52,211,153,.9);
-    animation:fs-marker-ping 2.4s cubic-bezier(.215,.61,.355,1) infinite;"></span>
-  <span style="position:absolute;left:11px;top:11px;width:22px;height:22px;
-    border-radius:50%;background:rgba(16,185,129,.22);
-    border:2px solid #10b981;box-shadow:0 0 16px rgba(16,185,129,.65);"></span>
-  <span style="position:absolute;left:20px;top:12px;width:2px;height:20px;background:#10b981;"></span>
-  <span style="position:absolute;left:12px;top:20px;width:20px;height:2px;background:#10b981;"></span>
-  <span style="position:absolute;left:19px;top:19px;width:6px;height:6px;
-    border-radius:50%;background:#fff;box-shadow:0 0 5px rgba(0,0,0,.5);"></span>
-</div>
-"""
+    marker_html = ('<div class="fs-pin"><span class="fs-pin-ring"></span>'
+                   '<span class="fs-pin-dot"></span></div>')
     folium.Marker(
         [lat, lon],
         tooltip="Your field",
@@ -1499,46 +1318,121 @@ def make_map(lat: float, lon: float, style: str) -> folium.Map:
 
     fmap.get_root().header.add_child(folium.Element("""
 <style>
-  .leaflet-container { background: #0b0f17 !important; font-family: Inter, sans-serif; }
+  .leaflet-container {
+    background: #0C434B !important;
+    font-family: 'Libre Franklin', 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif;
+    cursor: crosshair;
+  }
+  .fs-pin { position: relative; width: 44px; height: 44px; }
+  .fs-pin-dot {
+    position: absolute; left: 12px; top: 12px; width: 20px; height: 20px;
+    box-sizing: border-box; border-radius: 50%;
+    background: #D2452F; border: 3px solid #F7F0DD;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .5);
+  }
+  .fs-pin-ring {
+    position: absolute; inset: 5px; border-radius: 50%;
+    border: 2px solid #F7F0DD;
+    animation: fs-ping 2.8s cubic-bezier(.16, 1, .3, 1) infinite;
+  }
+  @keyframes fs-ping {
+    0% { transform: scale(.6); opacity: .95; }
+    70%, 100% { transform: scale(1.7); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .fs-pin-ring { animation: none; opacity: .6; } }
   .leaflet-control-attribution {
-    background: rgba(11, 15, 23, 0.82) !important;
-    color: #94a3b8 !important;
-    border: 1px solid rgba(51, 65, 85, 0.5) !important;
-    border-radius: 4px !important;
-    padding: 1px 5px !important;
-    font-size: 9px !important;
-    backdrop-filter: blur(6px);
-  }
-  .leaflet-control-attribution a { color: #cbd5e1 !important; }
-  .leaflet-control-zoom {
-    border: 1px solid rgba(51, 65, 85, 0.8) !important;
-    border-radius: 7px !important;
-    overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
-  }
-  .leaflet-control-zoom a {
-    background: rgba(11, 15, 23, 0.92) !important;
-    color: #cbd5e1 !important;
-    border-color: rgba(51, 65, 85, 0.7) !important;
-  }
-  .leaflet-control-zoom a:hover { background: #172033 !important; color: #fff !important; }
-  .leaflet-control-scale-line {
-    background: rgba(11, 15, 23, 0.75) !important;
-    border-color: #475569 !important;
-    color: #94a3b8 !important;
-    font-size: 9px !important;
-  }
-  .leaflet-tooltip {
-    background: #0b0f17 !important;
-    border: 1px solid #334155 !important;
-    color: #e2e8f0 !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+    background: rgba(247, 240, 221, .88) !important;
+    color: #5B4A39 !important;
+    padding: 1px 6px !important;
     font-size: 10px !important;
   }
-  .leaflet-tooltip-top:before { border-top-color: #334155 !important; }
+  .leaflet-control-attribution a { color: #1F150D !important; }
+  .leaflet-bar { border: 0 !important; box-shadow: 0 3px 9px rgba(2, 24, 28, .45) !important; border-radius: 3px !important; }
+  .leaflet-bar a {
+    background: #F7F0DD !important; color: #1F150D !important;
+    border-bottom-color: rgba(31, 21, 13, .2) !important;
+    font-weight: 700;
+  }
+  .leaflet-bar a:first-child { border-radius: 3px 3px 0 0 !important; }
+  .leaflet-bar a:last-child { border-radius: 0 0 3px 3px !important; }
+  .leaflet-bar a:hover { background: #F4C24C !important; }
+  .leaflet-control-scale-line {
+    background: rgba(247, 240, 221, .88) !important;
+    border-color: #1F150D !important;
+    color: #1F150D !important;
+    font-size: 10px !important;
+  }
+  .leaflet-tooltip {
+    background: #F7F0DD !important;
+    border: 0 !important;
+    border-radius: 2px !important;
+    color: #1F150D !important;
+    box-shadow: 0 3px 9px rgba(2, 24, 28, .45) !important;
+    font-size: 12px !important; font-weight: 650;
+  }
+  .leaflet-tooltip-top:before { border-top-color: #F7F0DD !important; }
 </style>
 """))
     return fmap
+
+
+def fine_print(divider: str) -> None:
+    """How scores are made, what the tool cannot tell you, and the footer."""
+    emit(divider)
+    with st.container(key="band-paper"):
+        emit(f"""
+    <section class="layer" id="fine-print" aria-label="The fine print">
+    <h2 class="layer-h">The fine print</h2>
+    <div class="fine">
+    <div>
+    <h3 class="group-h">How scores are made</h3>
+    <ul class="fine-list">
+    <li><b>Climate fit</b> compares each crop's published temperature, rainfall and soil pH
+    ranges (FAO EcoCrop) with this location, for the ten-year average and for the three driest years.</li>
+    <li><b>Soil health</b> is the share of four checks met, from USDA NRCS Conservation Practice
+    Standard 328: three or more functional groups, a legume, a perennial sod crop, and
+    high-residue crops in at least half the sequence.</li>
+    <li><b>Water saving</b> reflects how little rainfall the rotation's crops need (FAO EcoCrop).</li>
+    <li><b>2040 fit</b> shifts today's temperature and rainfall by the change projected for
+    2035–2044 (NASA NEX-GDDP-CMIP6 ensemble, middle-of-the-road SSP2-4.5 pathway) and recomputes
+    crop fit. It is shown for information and does not change the ranking.</li>
+    <li><b>Groundwater, slope and aridity</b> are shown for context and do not change the ranking.</li>
+    </ul>
+    </div>
+    <div>
+    <h3 class="group-h">What this tool cannot tell you</h3>
+    <ul class="fine-list">
+    <li><b>This is not a yield or profit forecast.</b> Prices, markets, equipment and local
+    practice are not considered. Talk to a local agronomist before changing a rotation.</li>
+    <li><b>Weather values are coarse.</b> They come from a grid cell about 50 km wide, so
+    neighbouring fields share them. Soil and crop history are local.</li>
+    <li><b>It is centred on the United States.</b> Crop history covers the contiguous US only,
+    and the 2040 projection returned no data for our test sites elsewhere.</li>
+    <li><b>One growing window,</b> April to September, is used for every crop.</li>
+    <li><b>Two planned criteria are not wired yet:</b> field greenness trend and greenness drop
+    in dry years.</li>
+    </ul>
+    </div>
+    </div>
+    <div class="ours">
+    <h3 class="group-h">Our own rules of thumb</h3>
+    <p>The plain-word verdicts beside each measurement, such as “Carbon-rich” or “Erosion risk”,
+    use cut-offs we chose ourselves. So do each crop's functional group and residue class, and
+    the “three or more groups” threshold. None of the verdicts changes the ranking, and all of
+    these choices need an agronomist's review.</p>
+    </div>
+    <footer class="foot">
+    <p><b>Field Shift</b>, built for the NASA Space Apps Challenge 2026. Data: NASA POWER,
+    GRACE-FO, SRTM and NEX-GDDP-CMIP6; ISRIC SoilGrids; USDA Cropland Data Layer. Map imagery:
+    Sentinel-2 cloudless by EOX, with labels and terrain from Esri.</p>
+    <nav aria-label="More about Field Shift">
+    <a href="{REPO_URL}#readme" target="_blank" rel="noopener">Methodology</a>
+    <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">NASA POWER</a>
+    <a href="{REPO_URL}" target="_blank" rel="noopener">Source code</a>
+    </nav>
+    </footer>
+    </section>
+    """)
 
 
 # ---------------------------------------------------------------------- state
@@ -1550,380 +1444,456 @@ st.session_state.setdefault("w_water", 1)
 # a map click is applied here, before the coordinate boxes are drawn
 if "pending_click" in st.session_state:
     st.session_state.lat, st.session_state.lon = st.session_state.pop("pending_click")
-crop_names = [c["crop"] for c in load_crops()]
-
-# --------------------------------------------------------------------- header
-st.markdown(CSS, unsafe_allow_html=True)
-st.markdown(f"""
-<header class="fs-header">
-  <div class="fs-header-inner">
-    <div class="fs-brand">
-      <div class="fs-logo">{ICON_GLOBE}</div>
-      <div>
-        <div class="fs-brand-line">
-          <h1>Field Shift</h1>
-          <span class="fs-version">NASA EarthData · Space Apps 2026</span>
-        </div>
-        <p>Synthesizing hyper-local satellite observations, climate projections &amp;
-        soil matrices for resilient farming</p>
-      </div>
-    </div>
-    <div class="fs-header-actions">
-      <a class="fs-top-btn" href="{REPO_URL}/fork" target="_blank" rel="noopener">
-        {ICON_FORK}<span>Fork</span>
-      </a>
-      <a class="fs-top-btn fs-icon-only" aria-label="GitHub repository"
-         href="{REPO_URL}" target="_blank" rel="noopener">{ICON_GITHUB}</a>
-      <span class="fs-top-sep"></span>
-      <a class="fs-top-btn fs-icon-only" aria-label="Methodology and limits"
-         href="{REPO_URL}#readme" target="_blank" rel="noopener">{ICON_INFO}</a>
-    </div>
-  </div>
-</header>
-""", unsafe_allow_html=True)
-
-# ------------------------------------------------------------------ fetch data
+crop_names = list(CROPS)
 LAT, LON = round(st.session_state.lat, 3), round(st.session_state.lon, 3)
-fp = None
-fetch_error = None
-with st.spinner("Fetching NASA climate, groundwater, terrain and soil data for this location…"):
-    try:
-        fp = site_data(LAT, LON)
-    except Exception as exc:  # keep the controls alive so the farmer can move the pin
-        fetch_error = exc
 
-# crops seen here by satellite become the starting answer for a new location
-detected = detected_crops(fp) if fp else []
-if fp and st.session_state.get("crops_for") != (LAT, LON):
-    st.session_state.crops_for = (LAT, LON)
-    if detected:
-        st.session_state.current = detected[:3]
-st.session_state.setdefault("current", ["corn", "soybean"])
+st.markdown(CSS + CSS_TAGS, unsafe_allow_html=True)
 
-# --------------------------------------------------------------------- layout
-left, right = st.columns([4, 8], gap="large")
-
-# ------------------------------------------------------------- left controls
-with left, st.container(key="field-panel"):
-    st.markdown(f"""
-<div class="fs-panel-head">
-  <div class="fs-panel-title"><span class="fs-dot fs-dot-green"></span>
-    <h2>Field Parameters</h2></div>
-  <span class="fs-code">{esc(field_code(LAT, LON))}</span>
+# ================================================================== the sky
+sky = st.container(key="band-sky")
+with sky:
+    emit(f"""
+<header class="mast">
+<span class="mast-mark">{MARK}Field Shift</span>
+<span class="mast-tag">NASA Space Apps Challenge 2026</span>
+<nav class="mast-nav" aria-label="About this tool">
+<a href="#fine-print">How it scores</a>
+<a href="{REPO_URL}" target="_blank" rel="noopener">Source code</a>
+</nav>
+</header>
+<div class="hero">
+<h1 class="hero-h"><span>Drop a pin.</span><span>NASA data fills in the rest.</span></h1>
+<p class="hero-deck">Field Shift reads the weather, soil, groundwater and crop history for
+the spot you pin, then ranks the crop rotations that fit it. It keeps what you grow now
+and shows its reasons.</p>
 </div>
-""", unsafe_allow_html=True)
+""")
 
-    st.markdown(f"""
-<div class="fs-section">
-  <div class="fs-section-head">
-    <span class="fs-label">Your farm coordinates</span>
-    <span class="fs-link">{ICON_PIN} Click map to pick</span>
-  </div>
-  <p class="fs-hint">Click on the satellite map or type high-precision decimal coordinates.</p>
-</div>
-""", unsafe_allow_html=True)
+    with st.container(key="hero-cols"):
+        map_col, plan_col = st.columns([7, 5])
 
-    lat_col, lon_col = st.columns(2, gap="small")
-    lat_dir = "°S" if st.session_state.lat < 0 else "°N"
-    lon_dir = "°E" if st.session_state.lon >= 0 else "°W"
-    with lat_col, st.container(key="coord-lat"):
-        st.markdown(f'<div class="fs-coord-head"><span>Latitude</span>'
-                    f'<span class="fs-unit">{lat_dir}</span></div>', unsafe_allow_html=True)
-        st.number_input("Latitude", -60.0, 75.0, step=0.001, format="%.3f", key="lat",
-                        label_visibility="collapsed")
-    with lon_col, st.container(key="coord-lon"):
-        st.markdown(f'<div class="fs-coord-head"><span>Longitude</span>'
-                    f'<span class="fs-unit">{lon_dir}</span></div>', unsafe_allow_html=True)
-        st.number_input("Longitude", -180.0, 180.0, step=0.001, format="%.3f", key="lon",
-                        label_visibility="collapsed")
+    # ------------------------------------------------------ the map plate
+    with map_col, st.container(key="plate"):
+        fmap = make_map(LAT, LON, st.session_state.get("map_style", "Hybrid"))
+        clicked = st_folium(fmap, height=400, use_container_width=True,
+                            returned_objects=["last_clicked"], key="map")
+        with st.container(key="plate-controls"):
+            lat_col, lon_col, style_col = st.columns([3, 3, 5], vertical_alignment="bottom")
+            with lat_col:
+                st.number_input("Latitude", -60.0, 75.0, step=0.001, format="%.3f", key="lat")
+            with lon_col:
+                st.number_input("Longitude", -180.0, 180.0, step=0.001, format="%.3f", key="lon")
+            with style_col:
+                st.radio("Map style", ["Hybrid", "Satellite", "Terrain"], horizontal=True,
+                         label_visibility="collapsed", key="map_style")
+            emit(f"""
+<p class="plate-cap"><b>Your field: {esc(coord_text(LAT, LON))}.</b> Click the map to move
+the pin. The dashed circle is 160 acres.</p>
+""")
+            with st.container(key="examples"):
+                emit('<p class="plate-cap">Or try a worked example:</p>')
+                for name, spot in EXAMPLES.items():
+                    if st.button(name, key=f"example-{name}"):
+                        st.session_state.pending_click = spot
+                        st.rerun()
 
-    st.markdown('<div class="fs-section"><span class="fs-label">What do you grow now?</span></div>',
-                unsafe_allow_html=True)
-    current = st.multiselect("What do you grow now?", crop_names, key="current",
-                             max_selections=3, label_visibility="collapsed",
-                             placeholder="+ Add crop...")
-
-    if detected:
-        crop_note = ("Pre-filled from USDA satellite crop maps for this spot. "
-                     "Change it if wrong.")
-    elif fp and fp["criteria"].get("c19_crop_sequence"):
-        crop_note = ("USDA crop maps show no primary field crop registered at this exact "
-                     "spot. Pick what you currently manage.")
-    else:
-        crop_note = ("Crop history is not available at this spot. "
-                     "Pick what you currently manage.")
-    st.markdown(f'<p class="fs-note">{ICON_ALERT}<span>{esc(crop_note)}</span></p>',
-                unsafe_allow_html=True)
-
-    st.markdown("""
-<div class="fs-section">
-  <div class="fs-section-head">
-    <span class="fs-label" style="text-transform:uppercase;letter-spacing:.055em;">Your priorities (0 – 5)</span>
-    <span class="fs-link">Rank weight</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-    def slider_label(text: str, key: str) -> None:
-        st.markdown(
-            f'<div class="fs-slider-label"><span>{esc(text)}</span>'
-            f'<span class="fs-slider-value">{st.session_state[key]}</span></div>',
-            unsafe_allow_html=True)
-
-    slider_label("Climate fit", "w_fit")
-    w_fit = st.slider("Climate fit", 0, 5, key="w_fit", label_visibility="collapsed")
-    st.markdown('<div class="fs-slider-scale"><span>0</span><span>5</span></div>',
-                unsafe_allow_html=True)
-    slider_label("Soil health regeneration", "w_soil")
-    w_soil = st.slider("Soil health regeneration", 0, 5, key="w_soil",
-                       label_visibility="collapsed")
-    st.markdown('<div class="fs-slider-scale"><span>0</span><span>5</span></div>',
-                unsafe_allow_html=True)
-    slider_label("Water saving & drought resistance", "w_water")
-    w_water = st.slider("Water saving & drought resistance", 0, 5, key="w_water",
-                        label_visibility="collapsed")
-    st.markdown('<div class="fs-slider-scale"><span>0</span><span>5</span></div>',
-                unsafe_allow_html=True)
-
-    st.markdown('<div class="fs-section"><span class="fs-label">Correct auto-filled values</span></div>',
-                unsafe_allow_html=True)
-    irrigated = st.checkbox("This field is equipped with irrigation")
-    use_ph = st.checkbox("I know my lab-tested soil pH")
-    ph = None
-    if use_ph:
-        st.markdown('<div class="fs-coord-head" style="margin-top:6px;">'
-                    '<span>Soil pH in H₂O</span><span class="fs-unit">pH</span></div>',
-                    unsafe_allow_html=True)
-        st.number_input("Soil pH", 3.0, 11.0, 6.5, 0.1, label_visibility="collapsed",
-                        placeholder="e.g. 6.5")
-
-    recalc = st.button("Re-Calculate Crop Rotations", icon=":material/bolt:",
-                       use_container_width=True)
-    st.markdown('<div class="fs-model-line">Models: NASA NEX-GDDP-CMIP6 + USDA CDL</div>',
-                unsafe_allow_html=True)
-
-# ---------------------------------------------------------------- map panel
-with right, st.container(key="map-card"):
-    with st.container(key="map-header"):
-        head_left, head_right = st.columns([7, 5], vertical_alignment="center")
-        with head_left:
-            st.markdown(f"""
-<div class="fs-map-coords">
-  <span class="fs-live"></span>
-  <span class="fs-map-title">Active Field Coordinates:</span>
-  <span class="fs-coord-chip">{esc(coord_text(LAT, LON))}</span>
-</div>
-""", unsafe_allow_html=True)
-        with head_right:
-            map_style = st.radio("Map style", ["Hybrid", "Satellite", "Terrain"],
-                                 horizontal=True, label_visibility="collapsed",
-                                 key="map_style")
-    fmap = make_map(LAT, LON, map_style)
-    clicked = st_folium(fmap, height=378, use_container_width=True,
-                        returned_objects=["last_clicked"], key="map")
-    st.markdown(f"""
-<div class="fs-map-legend">
-  <span class="fs-dot fs-dot-green"></span>
-  <span>Target plot: <strong>160 acres</strong> (NASA 250 m pixel)</span>
-</div>
-""", unsafe_allow_html=True)
-
-    click = (clicked or {}).get("last_clicked")
-    if click:
-        new = (round(click["lat"], 3), round(click["lng"], 3))
-        # act on each click once, so typed coordinates are not overwritten later
-        if new != st.session_state.get("handled_click"):
-            st.session_state.handled_click = new
-            st.session_state.pending_click = new
-            st.rerun()
-
-# ----------------------------------------------------------- criteria panel
-if fp is None:
-    with right, st.container(key="criteria-card"):
-        st.markdown(f"""
-<div style="padding:18px;">
-  <div class="fs-card-title-row"><h3 class="fs-card-title">Auto-filled Environmental Criteria</h3></div>
-  <div class="fs-problem fs-problem-red" style="margin:12px 0 0;">
-    {ICON_ALERT}<span><strong>Could not fetch data for this location.</strong><br>{esc(fetch_error)}</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-        if st.button("Retry the missing data", key="retry-all"):
-            site_data.clear()
-            st.rerun()
-else:
-    with right, st.container(key="criteria-card"):
-        with st.container(key="criteria-head"):
-            head_left, head_right = st.columns([9, 3], vertical_alignment="center")
-            with head_left:
-                st.markdown("""
-<div>
-  <div class="fs-card-title-row">
-    <h3 class="fs-card-title">Auto-filled Environmental Criteria</h3>
-    <span class="fs-source-pill">Satellite + In-situ</span>
-  </div>
-  <p class="fs-card-sub">Climate values come from a NASA grid cell about 50 km wide,
-  so nearby fields share them. Soil values are local (250 m).</p>
-</div>
-""", unsafe_allow_html=True)
-            with head_right:
-                if st.button("Refresh Feeds", icon=":material/refresh:", key="refresh-feeds"):
-                    site_data.clear()
-                    st.rerun()
-
-        st.markdown(f"""
-<div class="fs-table-wrap">
-<table class="fs-table" id="nasa-criteria-table">
-  <thead><tr><th>Criterion</th><th>Observed / Projected Value</th>
-  <th>Condition Status</th><th>Source &amp; Instrument</th></tr></thead>
-  <tbody>{primary_criteria_html(fp)}</tbody>
-</table>
-</div>
-""", unsafe_allow_html=True)
-
-        for note in fp["notes"]:
-            st.markdown(f'<div class="fs-problem">{ICON_ALERT}<span>{esc(note)}</span></div>',
-                        unsafe_allow_html=True)
-        if fp["notes"]:
-            if st.button("Retry the missing data", key="retry-missing"):
-                site_data.clear()
+        click = (clicked or {}).get("last_clicked")
+        if click:
+            new = (round(click["lat"], 3), round(click["lng"], 3))
+            # act on each click once, so typed coordinates are not overwritten later
+            if new != st.session_state.get("handled_click"):
+                st.session_state.handled_click = new
+                st.session_state.pending_click = new
                 st.rerun()
 
-        with st.expander(f"All {len(CRITERIA)} auto-filled criteria"):
-            st.markdown(f"""
-<div class="fs-table-wrap">
-<table class="fs-table">
-  <thead><tr><th>Criterion</th><th>Value</th><th>Condition Status</th>
-  <th>Source &amp; Instrument</th></tr></thead>
-  <tbody>{extra_criteria_html(fp)}</tbody>
-</table>
+    # ----------------------------------------------------- fetch the data
+    with plan_col:
+        plan = st.container(key="plan")
+    with plan:
+        waiting = st.empty()
+        if st.session_state.get("read_for") != (LAT, LON):
+            with waiting:
+                emit("""
+<div class="loading" role="status">
+<ol class="strips is-loading" style="--n:4" aria-hidden="true"><li style="--i:0"></li><li style="--i:1"></li><li style="--i:2"></li><li style="--i:3"></li></ol>
+<p>Reading NASA climate, groundwater, terrain and soil data for this spot. A new location
+takes about ten seconds while six data services answer.</p>
 </div>
-""", unsafe_allow_html=True)
+""")
+    fp = None
+    fetch_error = None
+    try:
+        fp = site_data(LAT, LON)
+        st.session_state.read_for = (LAT, LON)
+    except Exception as exc:  # keep the map alive so the pin can be moved
+        fetch_error = exc
+    waiting.empty()
 
-# ------------------------------------------------------- recommendations panel
-with right, st.container(key="recs-card"):
-    weights = {"fit": w_fit, "soil": w_soil, "water": w_water}
+    # crops seen here by satellite become the starting answer for a new location
+    detected = detected_crops(fp) if fp else []
+    if fp and st.session_state.get("crops_for") != (LAT, LON):
+        st.session_state.crops_for = (LAT, LON)
+        if detected:
+            st.session_state.current = detected[:3]
+    st.session_state.setdefault("current", ["corn", "soybean"])
+
+    # every control is read from session state, so each can sit beside what it changes
+    current = [n for n in st.session_state.current if n in CROPS]
+    weights = {"fit": st.session_state.w_fit, "soil": st.session_state.w_soil,
+               "water": st.session_state.w_water}
+    irrigated = bool(st.session_state.get("irrigated", False))
+    use_ph = bool(st.session_state.get("use_ph", False))
+    ph = float(st.session_state.get("ph_value", 6.5)) if use_ph else None
+
     res = None
     rec_error = None
     if fp is not None and sum(weights.values()) > 0:
         try:
-            res = recommend(LAT, LON, weights, top=5, current=tuple(current),
-                            fp=fp, overrides={"ph": ph,
-                                              "irrigated": irrigated or None})
+            res = recommend(LAT, LON, weights, top=5, current=tuple(current), fp=fp,
+                            overrides={"ph": ph, "irrigated": irrigated or None})
         except Exception as exc:
             rec_error = exc
 
-    count = len(res["recommendations"]) if res else 0
-    if res:
-        sub = criteria_summary(fp)
-    elif fp is not None and sum(weights.values()) == 0:
-        sub = "Set at least one priority above zero to rank rotations."
-    else:
-        sub = "Ranked by your priority weights and the criteria measured for this field."
-    count_text = (f"{count} recommendation{'s' if count != 1 else ''} generated"
-                  if count else "No rotations ranked")
+    baseline = res["current_rotation"] if res else None
+    recs = res["recommendations"] if res else []
+    top = recs[0] if recs else None
+    slots = max([len(r["rotation"]) for r in recs] + [len(baseline["rotation"]) if baseline else 0, 2])
 
-    st.markdown(f"""
-<div class="fs-recs-head">
-  <div>
-    <div class="fs-recs-title-row">
-      <h3 class="fs-recs-title">Optimal Crop Rotations</h3>
-      <span class="fs-ranked-pill">Ranked by your weights</span>
-    </div>
-    <p class="fs-recs-sub">{esc(sub)}</p>
-  </div>
-  <span class="fs-count">{esc(count_text)}</span>
-</div>
-""", unsafe_allow_html=True)
+    # the strips replay their planting pass whenever the ranking changes
+    signature = (LAT, LON, tuple(tuple(r["rotation"]) for r in recs),
+                 tuple(baseline["rotation"]) if baseline else ())
+    if st.session_state.get("rank_signature") != signature:
+        st.session_state.rank_signature = signature
+        st.session_state.flip = 1 - st.session_state.get("flip", 0)
+    flip = st.session_state.get("flip", 0)
 
-    if fp is None:
-        st.markdown(f'<div class="fs-info">{ICON_ALERT} Rotations will appear once the '
-                    'NASA feeds for this location load.</div>', unsafe_allow_html=True)
-    elif sum(weights.values()) == 0:
-        st.markdown(f'<div class="fs-info">{ICON_ALERT} Set at least one priority above '
-                    'zero in the panel on the left, then recalculate.</div>',
-                    unsafe_allow_html=True)
-    elif rec_error is not None:
-        st.markdown(f'<div class="fs-info">{ICON_ALERT} {esc(rec_error)}</div>',
-                    unsafe_allow_html=True)
-    else:
-        baseline = res["current_rotation"]
-        if baseline:
-            st.markdown(f"""
-<div class="fs-baseline">
-  <div class="fs-baseline-main">
-    <span class="fs-baseline-label">Your rotation now</span>
-    <strong>{arrow_join(baseline['rotation'])}</strong>
-  </div>
-  <div class="fs-baseline-metrics">
-    <span>Overall <b>{baseline['score']:.2f}</b></span>
-    <span>Climate <b>{baseline['fit']:.2f}</b></span>
-    <span>Soil <b>{baseline['soil_health'] * 100:.0f}%</b></span>
-    <span>Water <b>{baseline['water_saving'] * 100:.0f}/100</b></span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+    # ------------------------------------------------------ the plan plate
+    with plan:
+        emit('<h2 class="plan-h">The shift for this field</h2>')
+        st.multiselect("What do you grow now?", crop_names, key="current",
+                       max_selections=3, placeholder="Add a crop")
+        if detected:
+            crop_note = ("Pre-filled from USDA satellite crop maps for this spot. "
+                         "Change it if it is wrong.")
+        elif fp and fp["criteria"].get("c19_crop_sequence"):
+            crop_note = ("USDA crop maps show no field crop at this exact spot. "
+                         "Pick what you grow.")
         else:
-            st.markdown(f'<div class="fs-info">{ICON_ALERT} Pick the crops you grow now '
-                        'to compare options against your current rotation.</div>',
-                        unsafe_allow_html=True)
+            crop_note = "Crop history is not available at this spot. Pick what you grow."
+        emit(f'<p class="plan-note">{esc(crop_note)}</p>')
 
-        recs = res["recommendations"]
-        if not recs:
-            st.markdown(f'<div class="fs-info">{ICON_ALERT} No rotation fits this field yet. '
-                        'Try fewer current crops or move the pin.</div>',
-                        unsafe_allow_html=True)
+        if fp is None:
+            emit(f"""
+<div class="plan-msg"><b>Could not read this spot.</b> {esc(fetch_error)}. Move the pin onto
+farmland, or try again in a moment.</div>
+""")
+            if st.button("Try again", key="retry-all"):
+                site_data.clear()
+                st.rerun()
+        elif sum(weights.values()) == 0:
+            emit('<div class="plan-msg">Set at least one priority above zero to rank '
+                 'rotations. The three sliders are under <a href="#rotations">Rotations, '
+                 'ranked</a>.</div>')
+        elif rec_error is not None:
+            emit(f'<div class="plan-msg">{esc(rec_error)}</div>')
+        elif not top:
+            emit('<div class="plan-msg">No rotation fits this field yet. Try fewer current '
+                 'crops or move the pin.</div>')
         else:
-            cols = st.columns(len(recs), gap="medium")
-            for index, r in enumerate(recs):
-                with cols[index], st.container(key=f"rec-{index}"):
-                    st.markdown(rec_card_html(r, index, baseline), unsafe_allow_html=True)
-                    with st.expander("Crop details & reasons"):
-                        st.markdown(crop_details_html(r), unsafe_allow_html=True)
-
-        site = res["site"]
-        st.markdown(f"""
-<div style="margin-top:10px;color:#64748b;font:400 9.5px 'JetBrains Mono',monospace;line-height:1.5;">
-  Dry-year check uses {esc(', '.join(f'{y} ({r:.0f} mm)' for y, r, _ in site['driest_years']))}.
-  Soil texture: {esc(site['texture'] or 'missing')}.
-  {'Not offered here: ' + esc(', '.join(res['crops_not_offered'])) + '.' if res['crops_not_offered'] else ''}
+            added = [n for n in top["rotation"] if n not in current]
+            kept = [n for n in top["rotation"] if n in current]
+            rows = ""
+            if baseline:
+                rows += f"""
+<div class="shift-row">
+<div class="shift-head"><span class="shift-label">Now</span><span class="shift-score">{baseline['score']:.2f}</span></div>
+{strips_html(baseline['rotation'], slots=slots, flip=flip, delay_ms=350)}
 </div>
-""", unsafe_allow_html=True)
+"""
+            rows += f"""
+<div class="shift-row is-next">
+<div class="shift-head"><span class="shift-label">Shift to</span><span class="shift-score">{delta_html(top['score'], baseline['score']) if baseline else ''}{top['score']:.2f}</span></div>
+{strips_html(top['rotation'], slots=slots, added=added if baseline else (), flip=flip, delay_ms=560)}
+</div>
+"""
+            met_top = sum(1 for ok in top["soil_checks"].values() if ok)
+            if baseline:
+                met_now = sum(1 for ok in baseline["soil_checks"].values() if ok)
+                if met_top > met_now:
+                    checks = f"Meets {met_top} of 4 soil-health checks, up from {met_now}."
+                else:
+                    checks = f"Meets {met_top} of 4 soil-health checks; your rotation now meets {met_now}."
+                summary = (f"Keeps <b>{esc(join_words(kept))}</b> and adds "
+                           f"<b>{esc(join_words(added))}</b>. {checks}")
+            else:
+                summary = (f"Meets {met_top} of 4 soil-health checks. Pick the crops you grow "
+                           "now to compare against your current rotation.")
+            emit(f"""
+<div class="shift">{rows}</div>
+<p class="plan-sum">{summary}</p>
+<p class="small plan-key">Overall score from 0 to 1, weighted by your priorities. One strip is one year.</p>
+""")
+            with st.expander("Why this shift"):
+                emit(why_html(top))
+            others = len(recs) - 1
+            if others > 0:
+                emit(f'<p class="plan-more"><a href="#rotations">{icon("down", 15)}'
+                     f'{others} more option{"s" if others != 1 else ""}, ranked</a></p>')
 
-# --------------------------------------------------------------- methodology
-with right, st.container(key="method-card"):
-    with st.expander("How scores are made, and what this tool cannot tell you"):
-        st.markdown("""
-- **Climate fit** compares each crop's published temperature, rainfall and soil pH
-  ranges (FAO EcoCrop) with this location, for the ten-year average and for the
-  three driest years.
-- **Soil health** is the share of four checks met, from USDA NRCS Conservation
-  Practice Standard 328: three or more functional groups, a legume, a perennial
-  sod crop, and high-residue crops in at least half the sequence.
-- **Water saving** reflects how little rainfall the rotation's crops need (FAO EcoCrop).
-- **2040 fit** shifts today's temperature and rainfall by the change projected
-  for 2035–2044 (NASA NEX-GDDP-CMIP6 ensemble, middle-of-the-road SSP2-4.5 pathway)
-  and recomputes crop fit. It is shown for information and does not change the ranking.
-- **Groundwater, slope and aridity** are shown for context and do not change the ranking.
-- **This is not a yield or profit forecast.** Prices, markets, equipment and
-  local practice are not considered. Talk to a local agronomist before changing
-  a rotation.
+    # ------------------------------------------------- what the pin filled in
+    if fp is not None:
+        c = fp["criteria"]
+        filled = sum(1 for key in CRITERIA if is_filled(key, c))
+        emit(f"""
+<div class="intro" id="measured">
+<p class="intro-big"><b>{filled} of {len(CRITERIA)}</b> measurements filled in for this spot
+from NASA and open data. You typed none of them.</p>
+<div>
+<p class="small">They are laid out the way they sit in the field: the air, the surface,
+the soil, then the water under it.</p>
+<p class="keyline" style="margin-top:.5rem">
+{verdict_html('favourable', 'good')}{verdict_html('worth noting', 'note')}{verdict_html('watch', 'watch')}{verdict_html('concern', 'concern')}{verdict_html('neutral', 'plain')}
+</p>
+<p class="small" style="margin-top:.35rem">The plain-word verdicts use cut-offs we chose
+ourselves as rules of thumb. They are not part of the data and never change the ranking.</p>
+</div>
+</div>
+""")
+        if fp["notes"]:
+            with st.container(key="problems"):
+                emit("".join(f'<div class="problem">{icon("alert", 16)}<span>{esc(note)}</span></div>'
+                             for note in fp["notes"]))
+                if st.button("Retry the missing data", key="retry-missing"):
+                    site_data.clear()
+                    st.rerun()
+
+        dry_chart = history_bars(
+            c.get("_season_rain_by_year_mm") or {}, marked=c.get("c09_dry_years") or (),
+            unit=" mm", label="Growing-season rainfall for each year, dry seasons highlighted")
+        if dry_chart:
+            dry_chart += ('<p class="hist-cap">Growing-season rainfall each year. '
+                          "Dry seasons are the lit bars.</p>")
+        emit(f"""
+<section class="layer" aria-label="In the air">
+<h2 class="layer-h">In the air</h2>
+<p class="lead">Ten years of daily weather, 2015 to 2024, and the change projected for 2040.
+These values come from a NASA grid cell about 50 km wide, so nearby fields share them.</p>
+<div class="ledgers">
+<div>
+<h3 class="group-h">Rain</h3>
+<ul class="ledger">
+{ledger_row('c01_season_rain_mm', c)}
+{ledger_row('annual_rain_mm', c)}
+{ledger_row('c15_annual_rain_change_2040_pct', c, sub=True)}
+{ledger_row('c07_season_rain_cv', c)}
+{ledger_row('c06_aridity_index', c)}
+{ledger_row('c09_dry_years', c, extra=dry_chart)}
+</ul>
+</div>
+<div>
+<h3 class="group-h">Heat and season</h3>
+<ul class="ledger">
+{ledger_row('season_mean_temp_c', c)}
+{ledger_row('c14_season_temp_change_2040_c', c, sub=True)}
+{ledger_row('c02_season_gdd_c', c)}
+{ledger_row('c03_heat_days_per_season', c)}
+{ledger_row('c04_frost_free_days', c)}
+{ledger_row('c05_season_solar_mj_m2_day', c)}
+</ul>
+</div>
+</div>
+</section>
+""")
+        with st.container(key="refetch"):
+            if st.button("Fetch this field's data again", icon=":material/refresh:",
+                         key="refresh-feeds"):
+                site_data.clear()
+                st.rerun()
+
+if fp is None:
+    fine_print(SKYLINE)
+    st.stop()
+
+# ============================================================== the horizon
+horizon_inks = [GROUPS[CROPS[n]["group"]][0] for n in top["rotation"]] if top else \
+    ["corn", "grain", "squash", "hay"]
+emit(horizon_html(horizon_inks))
+
+# =============================================================== the ground
+ground = st.container(key="band-ground")
+with ground:
+    c = fp["criteria"]
+    seq = c.get("c19_crop_sequence") or {}
+    history = (history_strips(seq) if seq else
+               '<span class="slot">no field crop registered at this spot</span>')
+    num, label, _unit, _digits, source = CRITERIA["c19_crop_sequence"]
+    emit(f"""
+<section class="layer" aria-label="On the surface">
+<h2 class="layer-h">On the surface</h2>
+<p class="lead">What satellites saw growing at the pin, and the lie of the land. Crop history
+is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns no crop.</p>
+<div class="ledgers is-three">
+<div>
+<ul class="ledger">
+<li class="lg-row"><span class="lg-num">{esc(num)}</span>
+<div class="lg-main"><span class="lg-name">{esc(label)}</span></div>
+<div class="lg-meta"><span>{esc(source)}</span></div>
+<div class="lg-extra">{history}</div></li>
+</ul>
+</div>
+<div>
+<ul class="ledger">
+{ledger_row('c11_slope_pct', c)}
+{''.join(slot_row(*row) for row in UNWIRED)}
+</ul>
+</div>
+</div>
+</section>
 """)
 
-# -------------------------------------------------------------------- footer
-st.markdown(f"""
-<footer class="fs-footer">
-  <div class="fs-footer-inner">
-    <div class="fs-footer-left">
-      <span class="fs-dot fs-dot-green"></span>
-      <strong>Field Shift AgTech Intelligence</strong>
-      <span>| Powered by NASA Earth Observation &amp; USDA CDL</span>
-    </div>
-    <div class="fs-footer-links">
-      <a href="{REPO_URL}#readme" target="_blank" rel="noopener">Methodology</a>
-      <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">NASA Data</a>
-      <a href="{REPO_URL}" target="_blank" rel="noopener">Source code</a>
-    </div>
-  </div>
-</footer>
-""", unsafe_allow_html=True)
+    # ------------------------------------------------------------ rotations
+    if res:
+        driest = ", ".join(str(y) for y, _r, _t in res["site"]["driest_years"])
+        rot_lead = (f"Ranked from this field's ten-year temperature and rainfall, its three "
+                    f"driest years ({driest}), soil pH and texture, and the three priorities "
+                    f"below. Every option keeps what you grow now and adds to it.")
+    elif sum(weights.values()) == 0:
+        rot_lead = "Set at least one priority above zero to rank rotations."
+    else:
+        rot_lead = "Ranked by your priorities and the criteria measured for this field."
+    emit(f"""
+{CONTOUR}
+<section class="layer" id="rotations" aria-label="Rotations, ranked for this field">
+<h2 class="layer-h">Rotations, ranked for this field</h2>
+<p class="lead">{esc(rot_lead)}</p>
+</section>
+""")
+
+    with st.container(key="priorities"):
+        emit('<div class="group-head"><h3 class="group-h">What matters most to you?</h3>'
+             '<p class="small">Slide each from 0 to 5. The ranking re-forms as you move them.</p></div>')
+        fit_col, soil_col, water_col = st.columns(3, gap="large")
+        with fit_col:
+            st.slider("Climate fit", 0, 5, key="w_fit")
+        with soil_col:
+            st.slider("Soil health", 0, 5, key="w_soil")
+        with water_col:
+            st.slider("Water saving", 0, 5, key="w_water")
+
+    if sum(weights.values()) == 0:
+        emit(f'<div class="problem" style="margin-top:1.5rem">{icon("alert", 16)}<span>Every '
+             "priority is at zero, so there is nothing to rank by. Raise at least one.</span></div>")
+    elif rec_error is not None:
+        emit(f'<div class="problem" style="margin-top:1.5rem">{icon("alert", 16)}'
+             f"<span>{esc(rec_error)}</span></div>")
+    else:
+        legend = "".join(f'<span><i style="--c:var(--{ink})"></i>{esc(name)}</span>'
+                         for ink, name in GROUPS.values())
+        emit(f"""
+<div class="legend" aria-label="What the strips show">
+{legend}
+<span>{icon('legume', 15)}legume</span>
+<span>{icon('sod', 15)}perennial sod crop</span>
+<span>{icon('residue', 15)}high residue</span>
+<span><b class="strip-tag">{icon('plus', 11)}</b>added to what you grow now</span>
+</div>
+<p class="small" style="margin-top:.4rem">A strip's colour is its crop's functional group.
+The four soil-health checks count the colours and the three marks.</p>
+<div class="sch">
+<div class="sch-head" aria-hidden="true">
+<span>Rank</span><span>One cycle, a strip per year</span>
+<div class="sch-cols"><span>Overall score</span><span>Climate fit</span><span>Soil checks</span><span>Water saving</span><span>Fit in 2040</span></div>
+</div>
+</div>
+""")
+        with st.container(key="ranked"):
+            if baseline:
+                with st.container(key="rank-now"):
+                    emit(schedule_row(baseline, rank=None, baseline=None, slots=slots,
+                                      current=current, flip=flip))
+                    with st.expander(f"Why your rotation now scores {baseline['score']:.2f}"):
+                        emit(why_html(baseline))
+            else:
+                with st.container(key="rank-now"):
+                    emit('<div class="problem">Pick the crops you grow now, in the plan beside '
+                         "the map, to compare these options against your current rotation.</div>")
+            if not recs:
+                with st.container(key="rank-none"):
+                    emit(f'<div class="problem">{icon("alert", 16)}<span>No rotation fits this '
+                         "field yet. Try fewer current crops or move the pin.</span></div>")
+            for index, r in enumerate(recs, 1):
+                with st.container(key=f"rank-{index}"):
+                    emit(schedule_row(r, rank=index, baseline=baseline, slots=slots,
+                                      current=current, flip=flip))
+                    with st.expander(f"Why option {index} scores {r['score']:.2f}"):
+                        emit(why_html(r))
+
+        site = res["site"]
+        foot = ("Dry-year check uses this location's three driest years: "
+                + ", ".join(f"{y} ({r:.0f} mm)" for y, r, _ in site["driest_years"]) + ". "
+                + (f"Soil texture class: {site['texture']}. " if site["texture"] else
+                   "Soil texture missing, not checked. ")
+                + (f"Not offered here (poor climate fit): {', '.join(res['crops_not_offered'])}."
+                   if res["crops_not_offered"] else ""))
+        emit(f'<p class="small sch-foot">{esc(foot)}</p>')
+
+    # ----------------------------------------------------------------- soil
+    c = fp["criteria"]
+    ph_note = f"scoring with your value, {ph:.1f}" if ph is not None else ""
+    emit(f"""
+{CONTOUR}
+<section class="layer" aria-label="In the soil">
+<h2 class="layer-h">In the soil</h2>
+<p class="lead">The top 5 cm, read for a cell 250 m wide, so these values are local to the pin.</p>
+<div class="ledgers">
+<ul class="ledger">
+{ledger_row('c16_clay_pct', c)}
+{ledger_row('c16_sand_pct', c)}
+</ul>
+<ul class="ledger">
+{ledger_row('c17_soil_organic_carbon_g_per_kg', c)}
+{ledger_row('c18_soil_ph', c, note=ph_note)}
+</ul>
+</div>
+</section>
+""")
+    with st.container(key="corrections"):
+        emit('<div class="group-head"><h3 class="group-h">Know better than the satellite?</h3>'
+             '<p class="small">Correct an auto-filled value and the ranking above follows.</p></div>')
+        st.checkbox("This field is irrigated", key="irrigated")
+        st.checkbox("I know my soil pH", key="use_ph")
+        if st.session_state.get("use_ph"):
+            st.number_input("Soil pH", 3.0, 11.0, 6.5, 0.1, key="ph_value")
+    emit('<div class="layer-end"></div>')
+
+# ================================================================ the water
+emit(WATER_TABLE)
+with st.container(key="band-water"):
+    c = fp["criteria"]
+    gw_series = c.get("_groundwater_percentile_by_date") or {}
+    gw_chart = history_bars(
+        gw_series, latest=c.get("_groundwater_latest_date"), ceiling=100,
+        label="Groundwater wetness percentile, one reading a year")
+    if gw_chart:
+        gw_chart += ('<p class="hist-cap">One reading a year, taken in the same week. '
+                     "The pale bar is the latest.</p>")
+    emit(f"""
+<section class="layer layer-end" aria-label="In the water below">
+<h2 class="layer-h">In the water below</h2>
+<p class="lead">Groundwater is weighed from orbit by the GRACE-FO satellites: 0 is the driest
+on record for the week, 100 the wettest. Groundwater, slope and aridity are shown for context
+and do not change the ranking.</p>
+<div class="ledgers">
+<ul class="ledger">
+{ledger_row('c10_groundwater_percentile_latest', c, extra=gw_chart)}
+</ul>
+<ul class="ledger">
+{ledger_row('c10_groundwater_percentile_10yr_mean', c)}
+{ledger_row('c08_root_zone_wetness_0to1', c)}
+</ul>
+</div>
+</section>
+""")
+
+# ============================================================ the fine print
+fine_print(BEDROCK)

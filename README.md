@@ -67,11 +67,13 @@ priorities, and correct auto-filled values if you know better (irrigation,
 soil pH). The first load for a location takes about 5–10 seconds while it
 calls six data services.
 
-The interface is a dark, map-first dashboard: field parameters and priority
-weights on the left, a satellite field map, the auto-filled criteria table, and
-ranked rotation cards with expandable crop-level detail. Map tiles are
-Sentinel-2 cloudless (EOX) with Esri reference labels; every value in the
-dashboard still comes from the live NASA and soil feeds.
+The page is laid out as a cross-section of the field, printed like a
+soil-conservation poster. The satellite map and the top shift come first, then
+the criteria in the order they sit in the field (the air, the surface, the
+soil, the water below), and the fine print last. Each control sits beside what
+it changes, and each rotation is drawn as a row of year strips coloured by
+functional group. Map tiles are Sentinel-2 cloudless (EOX) with Esri reference
+labels; every value on the page still comes from the live NASA and soil feeds.
 
 The same engine runs from the terminal:
 

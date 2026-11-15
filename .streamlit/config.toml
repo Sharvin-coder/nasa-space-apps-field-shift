@@ -1,10 +1,17 @@
 [theme]
 base = "dark"
-primaryColor = "#10b981"
-backgroundColor = "#0b0f17"
-secondaryBackgroundColor = "#111827"
-textColor = "#e2e8f0"
-font = "sans serif"
+# Barn red marks the things a visitor can move: slider thumbs and ticked boxes.
+primaryColor = "#D2452F"
+# Soil chocolate and its darker shade back the menus and popovers.
+backgroundColor = "#39230F"
+secondaryBackgroundColor = "#2A190A"
+textColor = "#F7F0DD"
+linkColor = "#F4C24C"
+borderColor = "#8E7557"
+font = "'Libre Franklin', 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif"
+headingFont = "Besley, Clarendon, Rockwell, Georgia, serif"
+baseRadius = "3px"
+showWidgetBorder = true
 
 [client]
 toolbarMode = "minimal"
