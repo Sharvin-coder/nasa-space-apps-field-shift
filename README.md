@@ -55,10 +55,20 @@
 ```bash
 uv venv --python 3.11
 uv pip install --link-mode=copy -r requirements.txt
-.venv/Scripts/python -m fieldshift.recommend 42.03 -93.47 --current corn,soybean
+.venv/Scripts/streamlit run app.py
 ```
 
-(On macOS/Linux use `.venv/bin/python`.)
+(On macOS/Linux use `.venv/bin/streamlit`.) The app opens in your browser:
+click the map to place your field, pick what you grow now, set your
+priorities, and correct auto-filled values if you know better (irrigation,
+soil pH). The first load for a location takes several seconds while it
+fetches ten years of NASA data.
+
+The same engine runs from the terminal:
+
+```bash
+.venv/Scripts/python -m fieldshift.recommend 42.03 -93.47 --current corn,soybean
+```
 
 - `--current corn,soybean` is what the farmer grows now. It is scored as the
   baseline, and offered rotations keep those crops and add to them.
@@ -96,14 +106,16 @@ averaged), soil health and water saving, using the farmer's weights.
   and residue class, the "3+ groups" threshold, the 0.2 minimum fit, and the
   soil texture cut-offs.
 - **One growing window** (April–September, Northern Hemisphere) for all crops.
+- **Climate resolution:** NASA POWER weather comes on a grid about 50 km
+  wide, so neighbouring fields share climate values. Soil values are local.
 - Soil values can be missing (for example in towns); those checks are skipped
   and the output says so.
 
 ## Milestones
 
 1. ~~Location → criteria → ranked rotations with reasons, in the terminal.~~ Done.
-2. Web app: map pin, criteria panel with overrides, priority sliders,
-   recommendation cards.
+2. ~~Web app: map pin, criteria panel with overrides, priority sliders,
+   recommendation cards.~~ Done (Streamlit, `app.py`).
 3. Remaining criteria (10–15, 19) and the 2040 view.
 4. Pitch video and submission.
 
@@ -123,7 +135,8 @@ averaged), soil health and water saving, using the farmer's weights.
 - Weight by the farmer's priorities; output the top criteria behind each pick.
 
 **Role C — App and pitch**
-- Web app (see milestone 2) and a printable one-page farmer card.
+- Polish the Streamlit app (`app.py`), deploy it (Streamlit Community
+  Cloud is free), and add a printable one-page farmer card.
 - Pitch: one real location, start to finish, in 30 seconds.
 - Submission write-up, including data sources and limits.
 

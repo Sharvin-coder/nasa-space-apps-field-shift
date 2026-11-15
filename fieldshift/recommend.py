@@ -84,6 +84,9 @@ def crop_fit(crop, temp, rain, site):
         "rainfall": trapezoid(rain, crop["RMIN"], crop["ROPMN"], crop["ROPMX"], crop["RMAX"]),
     }
     notes = []
+    if site.get("irrigated"):
+        parts["rainfall"] = 1.0
+        notes.append("irrigated: rainfall not treated as a limit")
     if site["ph"] is not None:
         parts["soil pH"] = trapezoid(site["ph"], crop["PHMIN"], crop["PHOPMN"],
                                      crop["PHOPMX"], crop["PHMAX"])
@@ -153,9 +156,16 @@ def order_rotation(rotation):
     return list(best)
 
 
-def recommend(lat, lon, weights, top=5, current=()):
-    fp = fingerprint(lat, lon)
+def recommend(lat, lon, weights, top=5, current=(), fp=None, overrides=None):
+    """fp: a fingerprint fetched earlier (skips the network calls).
+    overrides: farmer corrections -- {"ph": float, "irrigated": bool}."""
+    fp = fp or fingerprint(lat, lon)
     site = site_from_fingerprint(fp)
+    overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
+    if "ph" in overrides:
+        site["ph"] = float(overrides["ph"])
+    site["irrigated"] = bool(overrides.get("irrigated", False))
+    site["overrides"] = overrides
     crops = load_crops()
     scores = score_crops(crops, site)
     usable = [c for c in crops if scores[c["crop"]]["fit"] >= MIN_CROP_FIT]
