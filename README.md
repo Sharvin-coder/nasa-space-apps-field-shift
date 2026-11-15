@@ -34,21 +34,21 @@
 | 3 | Heat days (max > 32 °C) | NASA POWER | done |
 | 4 | Frost-free days | NASA POWER | done |
 | 5 | Solar radiation | NASA POWER | done |
-| 6 | Aridity (rain vs. evaporative demand) | NASA POWER | to do |
+| 6 | Aridity index (annual rain ÷ reference evapotranspiration, Hargreaves FAO-56) | NASA POWER | done |
 | 7 | Year-to-year rainfall variability | NASA POWER | done |
 | 8 | Root-zone soil wetness | NASA POWER (MERRA-2); upgrade to SMAP | done (interim source) |
 | 9 | Dry years in the last 10 | NASA POWER | done |
-| 10 | Groundwater trend | NASA GRACE-FO | to do |
-| 11 | Slope / erosion risk | NASADEM | to do |
-| 12 | Field greenness trend | NASA MODIS / HLS | to do |
-| 13 | Greenness drop in dry years | NASA MODIS / HLS | to do |
-| 14 | Projected 2040 temperature change | NASA NEX-GDDP-CMIP6 | to do |
-| 15 | Projected 2040 rainfall change | NASA NEX-GDDP-CMIP6 | to do |
+| 10 | Groundwater wetness percentile, latest week and 10-year average | NASA GRACE / GRACE-FO drought indicator ([NDMC](https://nasagrace.unl.edu/)) | done |
+| 11 | Slope | NASA SRTM 30 m via [OpenTopoData](https://www.opentopodata.org/) | done |
+| 12 | Field greenness trend | NASA MODIS / HLS | not wired (see limits) |
+| 13 | Greenness drop in dry years | NASA MODIS / HLS | not wired (see limits) |
+| 14 | Projected 2040 temperature change | NASA NEX-GDDP-CMIP6 (POWER projection API) | done (US sites) |
+| 15 | Projected 2040 rainfall change | NASA NEX-GDDP-CMIP6 (POWER projection API) | done (US sites) |
 | 16 | Soil texture (clay, sand) | ISRIC SoilGrids | done |
 | 17 | Soil organic carbon | ISRIC SoilGrids | done |
 | 18 | Soil pH | ISRIC SoilGrids | done |
-| 19 | Current crop sequence | USDA Cropland Data Layer (US only) | to do |
-| 20 | Farmer priorities (profit / soil / water) | Farmer input | to do (UI) |
+| 19 | Crops grown at this spot, last 5 years | USDA Cropland Data Layer (contiguous US only) | done |
+| 20 | Farmer priorities (climate fit / soil / water) | Farmer input | done (no profit score) |
 
 ## Run it
 
@@ -59,10 +59,11 @@ uv pip install --link-mode=copy -r requirements.txt
 ```
 
 (On macOS/Linux use `.venv/bin/streamlit`.) The app opens in your browser:
-click the map to place your field, pick what you grow now, set your
+click the map to place your field, check the crops pre-filled from USDA
+satellite maps, set your
 priorities, and correct auto-filled values if you know better (irrigation,
-soil pH). The first load for a location takes several seconds while it
-fetches ten years of NASA data.
+soil pH). The first load for a location takes 5–20 seconds while it calls
+six data services.
 
 The same engine runs from the terminal:
 
@@ -89,6 +90,7 @@ Nothing here is a yield or profit forecast.
 | Dry-year fit | Crop fit recomputed for the site's three driest of the last ten years | NASA POWER |
 | Soil health | Share of four checks met: 3+ functional groups, a legume, a perennial sod crop, high-residue crops in at least half the sequence | USDA NRCS Conservation Practice Standard 328 (Conservation Crop Rotation) |
 | Water saving | How low the rotation's average optimal-minimum rainfall is, scaled across the crop table | FAO EcoCrop |
+| 2040 fit (shown, not scored) | Crop fit recomputed with today's temperature and rain shifted by the projected change to 2035–2044 | NASA NEX-GDDP-CMIP6 ensemble, SSP2-4.5 |
 
 The final score is the weighted average of fit (crop fit and dry-year fit
 averaged), soil health and water saving, using the farmer's weights.
@@ -110,20 +112,36 @@ averaged), soil health and water saving, using the farmer's weights.
   wide, so neighbouring fields share climate values. Soil values are local.
 - Soil values can be missing (for example in towns); those checks are skipped
   and the output says so.
+- **Shown but not scored:** aridity, groundwater, slope and the 2040 fit are
+  displayed for context. Turning them into score weights would mean inventing
+  numbers.
+- **2040 projection:** one emissions pathway (SSP2-4.5), ensemble mean only,
+  mean temperature and total rain only (no extremes). The POWER projection
+  service returned no data for test sites in India and Brazil, so outside the
+  US these two criteria show as missing.
+- **Groundwater** is a model-assimilated GRACE product on a 0.25° grid, and
+  the 10-year average samples one week per year.
+- **Slope** uses whole-metre SRTM elevations 90 m apart, so flat fields can
+  read 1–3% from rounding alone. The free OpenTopoData service allows about
+  1,000 lookups a day.
+- **Crop history** is one 30 m pixel; a pin on a road or farmyard returns no
+  crop. The USDA service is slow (5–15 s) and sometimes times out; the app
+  then shows it as missing and offers a retry.
+- **Greenness (12–13) is not wired.** The NASA ORNL MODIS point service timed
+  out on every attempt, and the alternative needs heavy raster libraries.
 
 ## Milestones
 
 1. ~~Location → criteria → ranked rotations with reasons, in the terminal.~~ Done.
 2. ~~Web app: map pin, criteria panel with overrides, priority sliders,
    recommendation cards.~~ Done (Streamlit, `app.py`).
-3. Remaining criteria (10–15, 19) and the 2040 view.
+3. ~~Remaining criteria and the 2040 view.~~ Done except MODIS greenness (12–13).
 4. Pitch video and submission.
 
 ## Task split (three roles — claim one)
 
 **Role A — Data**
-- Finish the remaining criteria: aridity (6), groundwater (10), slope (11),
-  greenness trend (12–13), climate projections (14–15), crop sequence (19).
+- Remaining: greenness trend (12–13). Everything else is wired.
 - Make each criterion fail safely: missing stays missing.
 
 **Role B — Recommendation engine**
@@ -154,7 +172,8 @@ cover crops improve drought resilience everywhere.
 - [NASA POWER](https://power.larc.nasa.gov/) — daily weather and solar
 - [NASA MODIS](https://modis.gsfc.nasa.gov/) / [HLS](https://www.earthdata.nasa.gov/data/projects/hls) — vegetation greenness
 - [NASA SMAP](https://smap.jpl.nasa.gov/) — soil moisture
-- [NASA GRACE-FO](https://gracefo.jpl.nasa.gov/) — groundwater change
+- [NASA GRACE-FO](https://gracefo.jpl.nasa.gov/) — groundwater, via the [GRACE drought indicator rasters](https://nasagrace.unl.edu/)
+- [NASA SRTM](https://www.earthdata.nasa.gov/data/instruments/srtm) — elevation, for slope
 - [NASA NEX-GDDP-CMIP6](https://www.nccs.nasa.gov/services/data-collections/land-based-products/nex-gddp-cmip6) — downscaled climate projections
 - [ISRIC SoilGrids](https://soilgrids.org/) — soil properties
 - [USDA Cropland Data Layer](https://www.nass.usda.gov/Research_and_Science/Cropland/SARS1a.php) — yearly crop type per field (US only)

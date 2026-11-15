@@ -27,6 +27,9 @@ How scores are made (nothing here is a yield forecast)
                ("3+" is our threshold; the standard says to rotate groups.)
   Water saving how low the rotation's average optimal-minimum rainfall
                (EcoCrop ROPMN) is, scaled across the crop table.
+  2040 fit     crop fit recomputed with today's temperature and rain shifted
+               by the NEX-GDDP-CMIP6 ensemble change to 2035-2044 (SSP2-4.5).
+               Shown for information; it does not enter the score.
 """
 from __future__ import annotations
 
@@ -112,7 +115,15 @@ def site_from_fingerprint(fp):
                            f"notes: {fp['notes']}")
     rain_by_year = c["_annual_rain_by_year_mm"]
     driest = sorted(rain_by_year, key=rain_by_year.get)[:N_DRIEST]
+    # 2040 climate: today's observed values shifted by the projected change
+    d_temp = c.get("c14_season_temp_change_2040_c")
+    d_rain = c.get("c15_annual_rain_change_2040_pct")
+    future = None
+    if d_temp is not None and d_rain is not None:
+        future = {"temp": round(c["season_mean_temp_c"] + d_temp, 2),
+                  "rain": round(c["annual_rain_mm"] * (1 + d_rain / 100), 1)}
     return {
+        "future": future,
         "temp": c["season_mean_temp_c"], "rain": c["annual_rain_mm"],
         "ph": c.get("c18_soil_ph"),
         "frost_free_days": c.get("c04_frost_free_days"),
@@ -133,7 +144,32 @@ def score_crops(crops, site):
             "limiting_factor": min(parts, key=parts.get) if fit < 1 else None,
             "notes": notes,
         }
+        if site.get("future"):
+            f = site["future"]
+            out[crop["crop"]]["fit_2040"] = round(crop_fit(crop, f["temp"], f["rain"], site)[0], 3)
     return out
+
+
+# USDA Cropland Data Layer category -> our crop name (categories not listed,
+# such as pasture or developed land, are not rotation crops in our table)
+CDL_TO_CROP = {
+    "Corn": "corn", "Soybeans": "soybean", "Sorghum": "sorghum", "Millet": "proso millet",
+    "Winter Wheat": "wheat", "Spring Wheat": "wheat", "Durum Wheat": "wheat",
+    "Oats": "oats", "Barley": "barley", "Rye": "rye", "Dry Beans": "dry bean",
+    "Sunflower": "sunflower", "Cotton": "cotton", "Peas": "field pea",
+    "Lentils": "lentil", "Chick Peas": "chickpea", "Canola": "canola", "Alfalfa": "alfalfa",
+}
+
+
+def detected_crops(fp):
+    """Crops seen at this pixel in recent years (USDA CDL), most recent first."""
+    seq = fp["criteria"].get("c19_crop_sequence") or {}
+    found = []
+    for year in sorted(seq, reverse=True):
+        name = CDL_TO_CROP.get(seq[year])
+        if name and name not in found:
+            found.append(name)
+    return found
 
 
 def soil_checks(rotation):
@@ -201,6 +237,10 @@ def recommend(lat, lon, weights, top=5, current=(), fp=None, overrides=None):
             "score": round(total, 3),
             "fit": round(fit, 3), "soil_health": round(soil, 3), "water_saving": round(water, 3),
             "soil_checks": checks,
+            # plain average crop fit, today and under the projected 2040 climate
+            "fit_today": round(sum(scores[c["crop"]]["fit"] for c in combo) / len(combo), 3),
+            "fit_2040": (round(sum(scores[c["crop"]]["fit_2040"] for c in combo) / len(combo), 3)
+                         if site.get("future") else None),
             "mean_optimal_min_rain_mm": round(mean_need, 0),
             "crops": {c["crop"]: scores[c["crop"]] for c in seq},
         }
