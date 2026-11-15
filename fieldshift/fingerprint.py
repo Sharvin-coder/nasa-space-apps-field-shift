@@ -248,7 +248,7 @@ def slope_criteria(lat: float, lon: float) -> dict:
 def soil_criteria(lat: float, lon: float) -> dict:
     params = [("lon", lon), ("lat", lat), ("depth", "0-5cm"), ("value", "mean")]
     params += [("property", name) for name in ("clay", "sand", "soc", "phh2o")]
-    r = requests.get(SOILGRIDS_URL, params=params, timeout=60)
+    r = requests.get(SOILGRIDS_URL, params=params, timeout=25)
     r.raise_for_status()
     out = {}
     for layer in r.json()["properties"]["layers"]:
@@ -308,6 +308,12 @@ def crop_sequence_criteria(lat: float, lon: float) -> dict:
 
 
 # ---------------------------------------------------------------- assemble
+# Successful fetches are kept in memory per source and location, so a retry
+# after one service fails only asks that service again.
+_CACHE: dict = {}
+_CACHE_MAX = 2000
+
+
 def fingerprint(lat: float, lon: float) -> dict:
     result = {
         "lat": lat, "lon": lon,
@@ -323,14 +329,22 @@ def fingerprint(lat: float, lon: float) -> dict:
         ("USDA crop sequence", lambda: crop_sequence_criteria(lat, lon)),
     )
 
-    def run(fn):
+    def run(source):
+        name, fn = source
+        key = (name, lat, lon)
+        if key in _CACHE:
+            return _CACHE[key], None
         try:
-            return fn(), None
+            values = fn()
         except Exception as exc:  # report the failure, never fill in a guess
             return {}, f"{type(exc).__name__}: {exc}"
+        if len(_CACHE) >= _CACHE_MAX:
+            _CACHE.clear()
+        _CACHE[key] = values
+        return values, None
 
     with ThreadPoolExecutor(len(sources)) as ex:
-        outcomes = list(ex.map(run, [fn for _, fn in sources]))
+        outcomes = list(ex.map(run, sources))
     for (name, _), (values, error) in zip(sources, outcomes):
         result["criteria"].update(values)
         if error:

@@ -5,6 +5,8 @@
 > Enter your farm's location. We fill in ~20 criteria from NASA data and
 > recommend crop rotations, showing the reasons behind each one.
 
+**Live app: https://sharvin-coder-nasa-space-apps-field-shift-app-265jl1.streamlit.app/**
+
 ## How it works
 
 1. **Location in.** The farmer enters a location (or drops a pin).
