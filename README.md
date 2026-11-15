@@ -64,8 +64,8 @@ uv pip install --link-mode=copy -r requirements.txt
 click the map to place your field, check the crops pre-filled from USDA
 satellite maps, set your
 priorities, and correct auto-filled values if you know better (irrigation,
-soil pH). The first load for a location takes 5–20 seconds while it calls
-six data services.
+soil pH). The first load for a location takes about 5–10 seconds while it
+calls six data services.
 
 The same engine runs from the terminal:
 
@@ -126,9 +126,12 @@ averaged), soil health and water saving, using the farmer's weights.
 - **Slope** uses whole-metre SRTM elevations 90 m apart, so flat fields can
   read 1–3% from rounding alone. The free OpenTopoData service allows about
   1,000 lookups a day.
-- **Crop history** is one 30 m pixel; a pin on a road or farmyard returns no
-  crop. The USDA service is slow (5–15 s) and sometimes times out; the app
-  then shows it as missing and offers a retry.
+- **Crop history** is one pixel (10–30 m); a pin on a road or farmyard returns
+  no crop. It comes from USDA NASS's image server, with the CropScape service
+  as a fallback.
+- **Soil** is read from the ISRIC map server, with the SoilGrids point API as
+  a fallback (that API often times out). If a source fails, the app shows the
+  value as missing and offers a retry.
 - **Greenness (12–13) is not wired.** The NASA ORNL MODIS point service timed
   out on every attempt, and the alternative needs heavy raster libraries.
 

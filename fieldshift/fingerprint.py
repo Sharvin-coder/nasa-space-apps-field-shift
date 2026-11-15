@@ -11,8 +11,9 @@ Sources (none needs a key or login):
     NASA POWER climate projection API (NEX-GDDP-CMIP6 ensemble) -> 14-15
     NASA GRACE/GRACE-FO groundwater drought indicator (NDMC rasters) -> 10
     NASA SRTM 30 m elevation via OpenTopoData   -> 11
-    ISRIC SoilGrids v2.0 point query            -> 16-18
-    USDA Cropland Data Layer via CropScape      -> 19 (contiguous US only)
+    ISRIC SoilGrids v2.0 (map server, point API as fallback) -> 16-18
+    USDA Cropland Data Layer (USDA NASS image server, CropScape as
+    fallback)                                -> 19 (contiguous US only)
 Not wired (see README): 12-13 (MODIS greenness).
 """
 from __future__ import annotations
@@ -36,6 +37,8 @@ GRACE_PAGE = "https://nasagrace.unl.edu/GlobalData.aspx"
 GRACE_TIF = "https://nasagrace.unl.edu/globaldata/{d}/gws_perc_025deg_GL_{d}.tif"
 ELEVATION_URL = "https://api.opentopodata.org/v1/srtm30m"
 CDL_URL = "https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLValue"
+CDL_USDA_URL = "https://pdi.scinet.usda.gov/image/rest/services/CDL_WM/ImageServer"
+SOILGRIDS_WCS = "https://maps.isric.org/mapserv"
 
 START_YEAR, END_YEAR = 2015, 2024
 # ASSUMPTION: Northern Hemisphere growing season, April-September.
@@ -245,9 +248,41 @@ def slope_criteria(lat: float, lon: float) -> dict:
 
 
 # --------------------------------------------------------------------- soil
-def soil_criteria(lat: float, lon: float) -> dict:
+SOIL_PROPS = {"clay": "c16_clay_pct", "sand": "c16_sand_pct",
+              "soc": "c17_soil_organic_carbon_g_per_kg", "phh2o": "c18_soil_ph"}
+SOIL_SCALE = 10      # SoilGrids stores all four as integers, ten times the unit
+
+
+def _soil_wcs_value(prop: str, lat: float, lon: float):
+    """One SoilGrids pixel from the ISRIC map server (WCS), 0-5 cm mean."""
+    from PIL import Image
+    d = 0.002        # a window about two 250 m pixels wide, centred on the point
+    crs = "http://www.opengis.net/def/crs/EPSG/0/4326"
+    r = requests.get(SOILGRIDS_WCS, timeout=20, params=[
+        ("map", f"/map/{prop}.map"), ("SERVICE", "WCS"), ("VERSION", "2.0.1"),
+        ("REQUEST", "GetCoverage"), ("COVERAGEID", f"{prop}_0-5cm_mean"),
+        ("FORMAT", "image/tiff"),
+        ("SUBSET", f"long({lon - d},{lon + d})"), ("SUBSET", f"lat({lat - d},{lat + d})"),
+        ("SUBSETTINGCRS", crs), ("OUTPUTCRS", crs)])
+    r.raise_for_status()
+    im = Image.open(io.BytesIO(r.content))
+    sx, sy = im.tag_v2[33550][:2]            # pixel size, degrees
+    tie = im.tag_v2[33922]                   # top-left corner: lon at [3], lat at [4]
+    col = min(max(int((lon - tie[3]) / sx), 0), im.width - 1)
+    row = min(max(int((tie[4] - lat) / sy), 0), im.height - 1)
+    v = im.getpixel((col, row))
+    return None if v <= 0 else v / SOIL_SCALE    # 0 or negative = no data
+
+
+def _soil_wcs(lat: float, lon: float) -> dict:
+    with ThreadPoolExecutor(len(SOIL_PROPS)) as ex:
+        values = list(ex.map(lambda prop: _soil_wcs_value(prop, lat, lon), SOIL_PROPS))
+    return dict(zip(SOIL_PROPS.values(), values))
+
+
+def _soil_rest(lat: float, lon: float) -> dict:
     params = [("lon", lon), ("lat", lat), ("depth", "0-5cm"), ("value", "mean")]
-    params += [("property", name) for name in ("clay", "sand", "soc", "phh2o")]
+    params += [("property", name) for name in SOIL_PROPS]
     r = requests.get(SOILGRIDS_URL, params=params, timeout=25)
     r.raise_for_status()
     out = {}
@@ -255,12 +290,15 @@ def soil_criteria(lat: float, lon: float) -> dict:
         raw = layer["depths"][0]["values"]["mean"]
         factor = layer["unit_measure"]["d_factor"]
         out[layer["name"]] = None if raw is None else raw / factor
-    return {
-        "c16_clay_pct": out.get("clay"),
-        "c16_sand_pct": out.get("sand"),
-        "c17_soil_organic_carbon_g_per_kg": out.get("soc"),
-        "c18_soil_ph": out.get("phh2o"),
-    }
+    return {key: out.get(prop) for prop, key in SOIL_PROPS.items()}
+
+
+def soil_criteria(lat: float, lon: float) -> dict:
+    """SoilGrids 0-5 cm values: map server first, point API as a fallback."""
+    try:
+        return _soil_wcs(lat, lon)
+    except Exception:
+        return _soil_rest(lat, lon)
 
 
 # ----------------------------------------------------- crop sequence (19)
@@ -287,7 +325,36 @@ def albers_conus(lat: float, lon: float) -> tuple[float, float]:
     return rho * math.sin(theta), rho0 - rho * math.cos(theta)
 
 
-def _cdl_value(year: int, x: float, y: float):
+_CDL_NAMES: dict = {}
+
+
+def _cdl_names() -> dict:
+    """CDL class code -> class name, from the USDA image server's own table."""
+    if not _CDL_NAMES:
+        r = requests.get(CDL_USDA_URL + "/rasterAttributeTable", params={"f": "json"}, timeout=20)
+        r.raise_for_status()
+        _CDL_NAMES.update({int(f["attributes"]["Value"]): f["attributes"]["Class_Names"]
+                           for f in r.json()["features"]})
+    return _CDL_NAMES
+
+
+def _cdl_usda(year: int, lat: float, lon: float):
+    """Crop class at a point for one year, from USDA NASS's image server."""
+    r = requests.get(CDL_USDA_URL + "/identify", timeout=20, params={
+        "geometry": json.dumps({"x": lon, "y": lat, "spatialReference": {"wkid": 4326}}),
+        "geometryType": "esriGeometryPoint",
+        "mosaicRule": json.dumps({"mosaicMethod": "esriMosaicAttribute",
+                                  "where": f"Year={year}"}),
+        "returnGeometry": "false", "returnCatalogItems": "false", "f": "json"})
+    r.raise_for_status()
+    value = r.json().get("value")
+    if value is None or not str(value).isdigit() or int(value) == 0:
+        return None                          # NoData: year not published or off the map
+    return _cdl_names().get(int(value))
+
+
+def _cdl_cropscape(year: int, lat: float, lon: float):
+    x, y = albers_conus(lat, lon)
     r = requests.get(CDL_URL, params={"year": year, "x": round(x), "y": round(y)}, timeout=15)
     r.raise_for_status()
     found = re.search(r'category:\s*"([^"]*)"', r.text)
@@ -295,15 +362,23 @@ def _cdl_value(year: int, x: float, y: float):
 
 
 def crop_sequence_criteria(lat: float, lon: float) -> dict:
-    """Crop type at this exact 30 m pixel for the last few years (USDA CDL)."""
+    """Crop type at this exact pixel for the last few years (USDA CDL).
+    USDA NASS image server first, the CropScape service as a fallback."""
     if not (24 <= lat <= 50 and -125 <= lon <= -66):
         raise ValueError("USDA Cropland Data Layer covers the contiguous US only")
-    x, y = albers_conus(lat, lon)
     last = date.today().year - 1             # newest year may not be published yet,
     years = list(range(last - CDL_YEARS, last + 1))   # so ask for one extra
-    with ThreadPoolExecutor(len(years)) as ex:
-        cats = list(ex.map(lambda yr: _cdl_value(yr, x, y), years))
-    seq = {yr: cat for yr, cat in zip(years, cats) if cat}
+
+    def fetch(lookup):
+        with ThreadPoolExecutor(len(years)) as ex:
+            cats = list(ex.map(lambda yr: lookup(yr, lat, lon), years))
+        return {yr: cat for yr, cat in zip(years, cats) if cat}
+
+    try:
+        _cdl_names()
+        seq = fetch(_cdl_usda)
+    except Exception:
+        seq = fetch(_cdl_cropscape)
     return {"c19_crop_sequence": {yr: seq[yr] for yr in sorted(seq)[-CDL_YEARS:]}}
 
 
