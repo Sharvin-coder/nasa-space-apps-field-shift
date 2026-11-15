@@ -67,6 +67,12 @@ priorities, and correct auto-filled values if you know better (irrigation,
 soil pH). The first load for a location takes about 5–10 seconds while it
 calls six data services.
 
+The interface is a dark, map-first dashboard: field parameters and priority
+weights on the left, a satellite field map, the auto-filled criteria table, and
+ranked rotation cards with expandable crop-level detail. Map tiles are
+Sentinel-2 cloudless (EOX) with Esri reference labels; every value in the
+dashboard still comes from the live NASA and soil feeds.
+
 The same engine runs from the terminal:
 
 ```bash
