@@ -1,0 +1,178 @@
+# Space Apps 2026 submission draft — Field Shift
+
+Draft text for the project page. Items marked **[TEAM]** need a human answer.
+Every number below comes from a live run of the app on 14–15 November 2026.
+
+## Project name
+
+Field Shift
+
+## Challenge
+
+Field Shift: Adapting Farms with NASA Data
+
+## Team
+
+**[TEAM]** names and roles.
+
+## Links
+
+- Live app: https://sharvin-coder-nasa-space-apps-field-shift-app-265jl1.streamlit.app/
+- Code: https://github.com/Sharvin-coder/nasa-space-apps-field-shift
+- Demo video or slides: **[TEAM]** link (see the 30-second script at the end)
+
+## High-level summary
+
+A farmer drops a pin on a map. Field Shift fills in 17 climate, water, terrain,
+soil and crop-history criteria for that spot from NASA and open data, with no
+typing. The farmer sets three priorities (climate fit, soil health, water
+saving), and the tool ranks crop rotations against their current one, showing
+the reasons for each. It also shows how each rotation's climate fit changes
+under the climate projected for 2040. It is decision support: it explains its
+reasoning and says plainly what it cannot tell you.
+
+## The problem
+
+Choosing a rotation means weighing rainfall, heat, season length, soil,
+groundwater and what the climate will do next. That data exists, much of it
+from NASA, but it sits in a dozen portals and formats. Most rotation tools ask
+the farmer to supply those inputs. A farmer who has to look up ten years of
+rainfall will not use the tool.
+
+## What it does
+
+1. **Pin.** Click the map or type coordinates.
+2. **Auto-fill.** In about 6 seconds the app calls six data services and fills
+   in the criteria: growing-season rain, growing degree days, heat days,
+   frost-free days, solar radiation, aridity, rainfall variability, root-zone
+   wetness, dry years, groundwater percentile, slope, projected 2040
+   temperature and rainfall change, soil texture, organic carbon, pH, and the
+   crops grown at that exact spot for the last five years.
+3. **Current rotation.** The crops seen by satellite pre-fill "What do you
+   grow now?". The farmer can correct it, and can also say the field is
+   irrigated or enter a measured soil pH.
+4. **Priorities.** Three sliders: climate fit, soil health, water saving.
+5. **Ranked rotations.** The current rotation is scored as the baseline. The
+   app then offers rotations that keep the current crops and add to them
+   (a shift, not a restart), with the change in each score and a "Why" panel:
+   which soil checks are met, and what limits each crop.
+
+## Worked example
+
+Central Iowa (42.10, −93.55). Satellite crop maps show corn and soybean
+alternating for five years, so the app pre-fills both.
+
+- Current rotation, corn → soybean: overall 0.66 (climate fit 0.97, soil
+  health 0.50, water saving 0.50). It meets two of four soil checks.
+- Top option, alfalfa → dry bean → corn → soybean: overall 0.84. It meets all
+  four soil checks (three or more functional groups, a legume, a perennial
+  sod crop, high-residue crops in at least half the sequence).
+- Projected change by 2040 at this spot: +0.9 °C in the growing season and
+  −0.2% annual rain.
+
+Move the pin to a field in southwest Kansas (38.05, −100.95) and the picture
+changes without any typing. The aridity index falls from 0.81 to 0.38.
+Groundwater sits at the 2nd percentile, against a 10-year average at the
+22nd. The detected crops are wheat and corn, which score 0.29 as a rotation;
+the top option, alfalfa → corn → wheat → sorghum, scores 0.66.
+
+## How it works
+
+- **Crop fit** uses the FAO EcoCrop method. For temperature, annual rainfall
+  and soil pH a crop scores 1 inside its optimal range, 0 outside its absolute
+  range, and a straight line in between. The lowest factor wins. Ranges are
+  taken from EcoCrop unchanged for 17 field crops.
+- **Dry-year fit** repeats that for the location's three driest of the last
+  ten years.
+- **Soil health** is the share of four checks met, taken from USDA NRCS
+  Conservation Practice Standard 328 (Conservation Crop Rotation).
+- **Water saving** reflects how little rainfall the rotation's crops need.
+- **2040 fit** shifts today's temperature and rainfall by the projected
+  change and recomputes crop fit. It is shown, not scored.
+- The final score is the farmer-weighted average of fit, soil health and
+  water saving.
+
+Built in Python with Streamlit. No API keys are needed, so anyone can run it.
+
+## NASA data used
+
+| Data | What we take from it |
+|---|---|
+| NASA POWER (MERRA-2, CERES) daily point data, 2015–2024 | Rain, temperature, growing degree days, heat days, frost-free days, solar radiation, root-zone wetness, aridity, rainfall variability, dry years |
+| NASA NEX-GDDP-CMIP6, through the NASA POWER climate projection service | Change in growing-season temperature and annual rain, 2015–2024 to 2035–2044, ensemble mean, SSP2-4.5 |
+| NASA GRACE / GRACE-FO data-assimilation drought indicator (rasters hosted by NDMC) | Groundwater wetness percentile: latest week and a 10-year average |
+| NASA SRTM 30 m elevation (through OpenTopoData) | Slope |
+
+## Other data and references
+
+- ISRIC SoilGrids v2.0 — clay, sand, organic carbon, pH (0–5 cm)
+- USDA NASS Cropland Data Layer — crop type per pixel per year (contiguous US)
+- FAO EcoCrop database — crop requirement ranges (copy hosted at
+  github.com/OpenCLIM/ecocrop)
+- USDA NRCS Conservation Practice Standard 328, Conservation Crop Rotation
+- FAO Irrigation and Drainage Paper 56 — Hargreaves reference
+  evapotranspiration, used for the aridity index
+- OpenStreetMap — base map
+
+## What it cannot do
+
+We list these in the app and the README, because a farmer should know them.
+
+- **No yield or profit forecast.** Prices, markets, equipment and local
+  practice are not considered. Some picks are climatically sound but may not
+  be practical.
+- **Climate values are coarse.** NASA POWER is on a grid about 50 km wide, so
+  neighbouring fields share climate values. Soil and crop history are local.
+- **US-centred.** Crop history covers the contiguous US only, and the
+  projection service returned no data for our test sites in India and Brazil.
+  Climate, groundwater, slope and soil work elsewhere.
+- **One growing window** (April–September) for all crops.
+- **Shown but not scored:** aridity, groundwater, slope and 2040 fit. Turning
+  them into weights would have meant inventing numbers.
+- **Our own judgment calls,** which need an agronomist's review: each crop's
+  functional group and residue class, the "three or more groups" threshold,
+  and the soil texture cut-offs.
+- **Two planned criteria are missing:** satellite greenness trend and
+  greenness drop in dry years (MODIS).
+
+## What we tried and dropped
+
+We first tested whether satellite data could show that fields with winter
+cover stay greener in drought. Pilots in Iowa and Nebraska found no benefit,
+and a negative difference in Nebraska, so we removed that feature instead of
+shipping a claim the data did not support. The code and results are in the
+repository history.
+
+## Use of AI
+
+**[TEAM]** confirm wording against this year's Space Apps AI rules.
+
+Suggested text: We used Anthropic's Claude (Claude Code) as a coding assistant
+to write and test the Python code, find data endpoints and draft
+documentation. Team members chose the idea and direction and reviewed the
+results. The app itself contains no AI or machine-learning model: every
+recommendation comes from published crop ranges and conservation rules
+applied to measured data, and every score can be traced in the "Why" panel.
+No AI-generated images, video or audio are used.
+
+## What's next
+
+- A profit view from real price and yield data.
+- Greenness history per field from MODIS or HLS.
+- Agronomist review of the crop labels and thresholds.
+- Growing seasons for the Southern Hemisphere and the tropics.
+- A printable one-page card for each field.
+
+## 30-second demo script
+
+1. (0–5 s) "Choosing a crop rotation takes data most farmers never see."
+   Show the app with the map.
+2. (5–12 s) Click a field in Iowa. "One click. NASA climate, groundwater,
+   terrain, soil, and five years of crop history fill in on their own."
+3. (12–20 s) Point at the baseline and Option 1. "Corn and soybean scores
+   0.66. Adding alfalfa and dry bean lifts it to 0.84, and here is why."
+   Open the "Why" panel.
+4. (20–26 s) Click southwest Kansas. "Different field, different answer:
+   far drier, groundwater near its record low, and sorghum joins the
+   rotation."
+5. (26–30 s) "Field Shift. NASA data in, an explained rotation out."
