@@ -52,7 +52,10 @@ rainfall will not use the tool.
    grow now?". The farmer can correct it, and can also say the field is
    irrigated or enter a measured soil pH.
 4. **Priorities.** Three sliders: climate fit, soil health, water saving.
-5. **Ranked rotations.** The current rotation is scored as the baseline. The
+5. **AI reading.** On request, an AI analyst reads the field's measurements
+   and scores and explains in plain words what stands out, what the top shift
+   changes, and what to ask an agronomist. It never changes the ranking.
+6. **Ranked rotations.** The current rotation is scored as the baseline. The
    app then offers rotations that keep the current crops and add to them
    (a shift, not a restart), with the change in each score and a "Why" panel:
    which soil checks are met, and what limits each crop.
@@ -147,13 +150,22 @@ repository history.
 
 **[TEAM]** confirm wording against this year's Space Apps AI rules.
 
-Suggested text: We used Anthropic's Claude (Claude Code) as a coding assistant
-to write and test the Python code, find data endpoints and draft
-documentation. Team members chose the idea and direction and reviewed the
-results. The app itself contains no AI or machine-learning model: every
-recommendation comes from published crop ranges and conservation rules
-applied to measured data, and every score can be traced in the "Why" panel.
-No AI-generated images, video or audio are used.
+**[TEAM]** list every AI tool each member used. One commit in the history is
+labelled as a DeepSeek iteration, so the list below may be incomplete.
+
+Suggested text: We used AI coding assistants (Anthropic's Claude through
+Claude Code; **[TEAM]** add any others) to write and test the Python code,
+find data endpoints and draft documentation. Team members chose the idea and
+direction and reviewed the results.
+
+Inside the app, AI is used in one place: an optional "AI reading of this
+field", written by Anthropic's Claude from the measurements and scores already
+on the page. It interprets the data in plain language and is labelled as
+AI-written. It does not set or change any score: every ranking comes from
+published crop ranges and conservation rules applied to measured data, and can
+be traced in the "Why" panel. Figures in the AI text are checked against the
+data automatically and flagged if they do not match. No AI-generated images,
+video or audio are used.
 
 ## What's next
 

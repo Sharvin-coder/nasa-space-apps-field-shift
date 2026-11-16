@@ -9,11 +9,14 @@ surface, the soil and the water under it, then the fine print.
 from __future__ import annotations
 
 import html
+import json
+import os
 
 import folium
 import streamlit as st
 from streamlit_folium import st_folium
 
+from fieldshift.analyst import analyse, build_payload
 from fieldshift.fingerprint import fingerprint
 from fieldshift.recommend import (
     CDL_TO_CROP,
@@ -1354,6 +1357,54 @@ def site_data(lat: float, lon: float) -> dict:
     return fp
 
 
+def analyst_key() -> str | None:
+    """The Anthropic API key from Streamlit secrets or the environment, if any."""
+    try:
+        key = st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:  # no secrets file, or no such secret
+        key = os.environ.get("ANTHROPIC_API_KEY")
+    return key or None
+
+
+@st.cache_data(show_spinner=False, ttl=24 * 3600, max_entries=500)
+def ai_reading(signature: str, _res: dict, _api_key: str) -> dict:
+    """One paid model call per distinct field and settings, shared by all visitors."""
+    return analyse(_res, _api_key)
+
+
+def ai_panel(res: dict) -> None:
+    """The AI analyst's reading of this field. It interprets; it never re-ranks."""
+    api_key = analyst_key()
+    if not api_key:      # no key configured: the app runs without the analyst
+        return
+    with st.expander("AI reading of this field"):
+        signature = json.dumps(build_payload(res), sort_keys=True, default=str)
+        wanted = st.session_state.setdefault("ai_wanted", set())
+        if signature not in wanted:
+            emit('<p class="plan-note">An AI model (Claude) reads the measurements and scores '
+                 'on this page and says what they mean for this field. It does not change '
+                 'the ranking.</p>')
+            if st.button("Write the AI reading", key="ai-read"):
+                wanted.add(signature)
+                st.rerun()
+            return
+        try:
+            with st.spinner("The AI analyst is reading this field…"):
+                reading = ai_reading(signature, res, api_key)
+        except Exception as exc:
+            wanted.discard(signature)
+            emit(f'<p class="plan-note">{esc(exc)}</p>')
+            return
+        body = "".join(f'<p class="plan-sum"><b>{esc(sec["title"].rstrip("."))}.</b> '
+                       f'{esc(sec["text"])}</p>' for sec in reading["sections"])
+        note = ("Written by an AI model from this page's data. It can be wrong, and it is "
+                "not agronomic advice.")
+        if reading["unverified_numbers"]:
+            note += (" Figures in this text that we could not match to the data: "
+                     + ", ".join(reading["unverified_numbers"]) + ".")
+        emit(body + f'<p class="plan-note" style="margin-top:.5rem">{esc(note)}</p>')
+
+
 def make_map(lat: float, lon: float, style: str) -> folium.Map:
     fmap = folium.Map(location=[lat, lon], zoom_start=13, tiles=None,
                       control_scale=True, prefer_canvas=True)
@@ -1490,6 +1541,9 @@ def fine_print(divider: str) -> None:
     2035–2044 (NASA NEX-GDDP-CMIP6 ensemble, middle-of-the-road SSP2-4.5 pathway) and recomputes
     crop fit. It is shown for information and does not change the ranking.</li>
     <li><b>Groundwater, slope and aridity</b> are shown for context and do not change the ranking.</li>
+    <li><b>The AI reading</b> is written by a language model (Claude) that sees only the
+    measurements and scores on this page. It explains them; it does not set or change any
+    score. Figures in its text are checked against the data and flagged if they do not match.</li>
     </ul>
     </div>
     <div>
@@ -1733,6 +1787,7 @@ farmland, or try again in a moment.</div>
 """)
             with st.expander("Why this shift"):
                 emit(why_html(top))
+            ai_panel(res)
             others = len(recs) - 1
             if others > 0:
                 emit(f'<p class="plan-more"><a href="#rotations">{icon("down", 15)}'

@@ -75,6 +75,20 @@ it changes, and each rotation is drawn as a row of year strips coloured by
 functional group. Map tiles are Sentinel-2 cloudless (EOX) with Esri reference
 labels; every value on the page still comes from the live NASA and soil feeds.
 
+### AI field analyst (optional)
+
+With an Anthropic API key, the main panel gains an "AI reading of this field".
+A language model (Claude) is given only the measurements and scores already on
+the page and writes a short plain-language reading: what stands out, what the
+top shift changes, and what to ask an agronomist. It never sets or changes a
+score. Figures in its text are checked against the data and flagged if they
+do not match. One reading is generated per field and settings, on request,
+with a daily cap (`fieldshift/analyst.py`).
+
+To switch it on, set `ANTHROPIC_API_KEY` as an environment variable locally,
+or as a secret on Streamlit Community Cloud. Without a key the panel is
+hidden and everything else works as before.
+
 The same engine runs from the terminal:
 
 ```bash
