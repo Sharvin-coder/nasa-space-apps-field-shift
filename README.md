@@ -80,14 +80,20 @@ field** (map, current rotation, top shift, report), **Rotations** (priorities,
 constraints, climate time machine, ranking, ten-year replay), **Measurements**
 (air, surface, soil, water, glossary), **The model** and **Fine print**.
 
-### The model, today and proposed
+### The Farm Sight world model (proposed)
 
-Rankings come from explicit rules, not a trained model. "The model" tab and
-[MODEL.md](MODEL.md) say exactly which methods run today, and set out the
-design we would build next: a neurosymbolic world model in which a learned
-model of how a field changes over time is tied to the published agronomic
-rules, which act as its mask, starting point and checker. **That design is
-not trained or running, and no result is claimed for it.**
+"The model" tab and [MODEL.md](MODEL.md) set out the learning model we designed
+to build on the rule engine: an action-conditioned world model of a single
+field, tied to the agronomic rules as its anchor, mask and verifier.
+
+![Architecture](docs/architecture.svg)
+
+Its distinguishing parts are a crop-as-action transition, a two-clock state
+that carries one crop's legacy into the next season, rule ranges the data may
+shift only within hard bounds (so what it learns is a readable table), a
+twin-field causal training signal, and a verifier-guarded planner scored
+across separate climate models. MODEL.md compares it with seven published
+systems. **It is a design: not trained, and no result is claimed for it.**
 
 ### Explore, not just rank
 

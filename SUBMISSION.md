@@ -82,28 +82,32 @@ rainfall will not use the tool.
   soil, how satellite and ground measurements differ, how datasets of
   different resolution are combined, and where local judgment is needed.
 
-## Modeling: what runs today and what we designed
+## The Farm Sight world model (proposed design)
 
-Farm Sight's rankings come from explicit rules (suitability curves from FAO
-EcoCrop, the lowest factor wins, four conservation checks, an exhaustive
-search over rotations), so every score can be traced. The app's "The model"
-tab and `MODEL.md` describe this, and then set out the model we would build
-next: a neurosymbolic world model.
+Beyond the rule engine that runs today, we designed the learning model we
+would build next. It is in the app's "The model" tab and in `MODEL.md`, with
+an architecture diagram.
 
-- A **neural** encoder and world model learn how a field's state changes
-  every 16 days given the weather and the crop planted, trained to predict
-  the next satellite readings. Labels are free: USDA crop maps say what was
-  planted, MODIS says how green it grew. No yield records are needed.
-- A **symbolic** rule layer (the rules running today) is used three ways:
-  as a mask, as the starting point the network may only correct, and as a
-  checker on every output.
-- A planner rolls each rotation forward through many climate runs, so the
-  spread becomes a stated uncertainty, and an explainer reports the rules
-  that fired and the correction applied.
+- **A world model with the crop as the action.** A latent model of one field
+  that steps every 16 days given the weather and the crop planted, so a
+  rotation can be simulated forward under a climate that has not happened.
+- **A two-clock state.** A fast state (canopy, root-zone water) and a yearly
+  slow state that carries one crop's legacy into the next season.
+- **Rules inside the model.** FAO EcoCrop ranges and NRCS 328 checks act as
+  anchor, mask and verifier. The only learnable rule is a bounded offset on
+  each crop range, so what the model learns is a revised table an agronomist
+  can read and overrule.
+- **A causal training signal from free labels.** USDA crop maps say what was
+  planted, MODIS says how the field responded, and neighbouring fields with
+  different crops act as near natural experiments. No yield records needed.
+- **Risk-aware, verified planning.** Rotations are rolled through each
+  climate model separately and scored on the bad tail as well as the average.
 
-**This is a design. It is not trained or running, and we claim no result for
-it.** We have not surveyed the literature, so we do not claim it is new to
-the field.
+We checked this against published work on 16 November 2026 (weather-driven
+satellite world models, hybrid physics and ML crop models, rotation planners
+with symbolic limits, causal rotation studies) and found the ingredients
+separately but not this combination. `MODEL.md` lists the seven systems
+compared. **This is a design. It is not trained, and we claim no result.**
 
 ## Worked example
 

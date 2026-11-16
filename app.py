@@ -19,6 +19,7 @@ from streamlit_folium import st_folium
 
 from fieldshift import model_design as md
 from fieldshift.analyst import analyse, build_payload
+from fieldshift.diagram import architecture_svg
 from fieldshift.explain import (CROP_BENEFITS, GLOSSARY, HOW_COMBINED, REPLAY_NOTE,
                                 RESOLUTIONS, SATELLITE_VS_GROUND, SCENARIO_NOTE,
                                 UNCERTAINTY)
@@ -1024,6 +1025,17 @@ EXTRA_CSS = """
   background: var(--field);
 }
 .stApp .mdl ol.arch > li.k-neural { border-left-color: var(--water); }
+.stApp .mdl ol.arch > li.k-data { border-left-color: var(--leaf); }
+.mdl-fig { margin: 1.75rem 0 .5rem; overflow-x: auto; border: 1.5px solid var(--rule); background: var(--paper); }
+.mdl-fig-in { min-width: 62rem; line-height: 0; }
+.mdl-fig svg { display: block; width: 100%; height: auto; }
+.stApp .mdl table.why code { font: 600 .875rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--fg); background: none; padding: 0; white-space: pre-wrap; }
+.stApp .mdl table.why td, .stApp .mdl table.why th { vertical-align: top; white-space: normal; }
+.stApp .mdl table.why th .who { display: block; font-weight: 400; font-size: .8125rem; color: var(--fg2); }
+.stApp .mdl table.why th a { color: inherit; }
+.stApp .mdl table.prior th { min-width: 15rem; }
+.stApp .mdl p.small { margin-top: .625rem; font-size: .875rem; color: var(--fg2); }
 .stApp .mdl ol.arch > li.k-symbolic { border-left-color: var(--barn); }
 .stApp .mdl ol.arch > li.k-search { border-left-color: var(--gold); }
 .mdl .arch-n { font: 900 1.625rem/1 var(--display); color: var(--fg); }
@@ -1775,40 +1787,53 @@ def fine_print(divider: str) -> None:
 
 
 def model_tab() -> None:
-    """What produces the numbers today, and the model we propose to build next."""
+    """The proposed world model: diagram, components, maths, prior work, test plan."""
     def pairs(items) -> str:
         return "".join(f"<li><b>{esc(a)}.</b> {esc(b)}</li>" for a, b in items)
 
-    layers = "".join(
-        f'<li class="k-{esc(kind.split()[0])}"><span class="arch-n">{esc(n)}</span><div>'
+    parts = "".join(
+        f'<li class="k-{esc(kind)}"><span class="arch-n">{esc(n)}</span><div>'
         f'<p class="arch-name">{esc(name)}<span class="arch-kind">{esc(kind)}</span></p>'
-        f'<p>{esc(what)}</p><p class="arch-uses"><b>Uses:</b> {esc(uses)}</p></div></li>'
-        for n, name, kind, what, uses in md.LAYERS)
+        + "".join(f"<p>{esc(text)}</p>" for text in paragraphs) + "</div></li>"
+        for n, name, kind, paragraphs in md.COMPONENTS)
+    maths = "".join(
+        f'<tr><th scope="row">{esc(label)}</th><td><code>{esc(expr)}</code></td>'
+        f"<td>{esc(note)}</td></tr>" for label, expr, note in md.EQUATIONS)
+    prior = "".join(
+        f'<tr><th scope="row"><a href="{esc(url)}" target="_blank" rel="noopener">{esc(title)}</a>'
+        f'<span class="who">{esc(who)}</span></th><td>{esc(does)}</td><td>{esc(adds)}</td></tr>'
+        for title, who, does, adds, url in md.PRIOR_WORK)
     risks = "".join(f"<li>{esc(r)}</li>" for r in md.RISKS)
+    summary = "".join(f"<p>{esc(text)}</p>" for text in md.SUMMARY)
     with st.container(key="band-model"):
         emit(f"""
 <section class="layer mdl" aria-label="The model">
-<h2 class="layer-h">The model</h2>
-<p class="lead">What produces the numbers today, and the learning model we designed to
-build on it.</p>
-
-<h3 class="group-h">What runs today: explicit rules</h3>
-<p>{esc(md.TODAY_INTRO)}</p>
-<ul class="fine-list">{pairs(md.TODAY_METHODS)}</ul>
-<p>{esc(md.MODELS_IN_THE_DATA)}</p>
-<p>{esc(md.WHY_NOT_ENOUGH)}</p>
-
-<h3 class="group-h">What we would build next: {esc(md.DESIGN_NAME[0].lower() + md.DESIGN_NAME[1:])}</h3>
+<h2 class="layer-h">{esc(md.NAME)}</h2>
+<p class="lead">{esc(md.TAGLINE)}</p>
 <p class="status">{esc(md.STATUS)}</p>
-<p>{esc(md.DESIGN_INTRO)}</p>
-<ol class="arch">{layers}</ol>
+{summary}
+</section>
+<div class="mdl-fig"><div class="mdl-fig-in">{architecture_svg()}</div></div>
+<section class="mdl">
+<h3 class="group-h">The parts, in order</h3>
+<ol class="arch">{parts}</ol>
 
-<h3 class="group-h">What sets the design apart</h3>
-<ul class="fine-list">{pairs(md.DISTINCTIVE)}</ul>
-<p>{esc(md.NOVELTY_CAVEAT)}</p>
+<h3 class="group-h">In symbols</h3>
+<div class="why-wrap"><table class="why maths"><tbody>{maths}</tbody></table></div>
 
-<h3 class="group-h">How we would train and test it</h3>
-<ol class="steps">{pairs(md.PLAN)}</ol>
+<h3 class="group-h">What is new in this design</h3>
+<ul class="fine-list">{pairs(md.CONTRIBUTIONS)}</ul>
+
+<h3 class="group-h">How it differs from published work</h3>
+<div class="why-wrap"><table class="why prior">
+<thead><tr><th scope="col">Published work</th><th scope="col">What it does</th>
+<th scope="col">What it lacks that this design adds</th></tr></thead>
+<tbody>{prior}</tbody></table></div>
+<p>{esc(md.NOVELTY_CLAIM)}</p>
+<p class="small">{esc(md.BUILDING_BLOCKS)}</p>
+
+<h3 class="group-h">How it would be trained and tested</h3>
+<ol class="steps">{pairs(md.EVALUATION)}</ol>
 
 <h3 class="group-h">Where it could go wrong</h3>
 <ul class="fine-list">{risks}</ul>
