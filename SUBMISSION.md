@@ -82,6 +82,29 @@ rainfall will not use the tool.
   soil, how satellite and ground measurements differ, how datasets of
   different resolution are combined, and where local judgment is needed.
 
+## Modeling: what runs today and what we designed
+
+Farm Sight's rankings come from explicit rules (suitability curves from FAO
+EcoCrop, the lowest factor wins, four conservation checks, an exhaustive
+search over rotations), so every score can be traced. The app's "The model"
+tab and `MODEL.md` describe this, and then set out the model we would build
+next: a neurosymbolic world model.
+
+- A **neural** encoder and world model learn how a field's state changes
+  every 16 days given the weather and the crop planted, trained to predict
+  the next satellite readings. Labels are free: USDA crop maps say what was
+  planted, MODIS says how green it grew. No yield records are needed.
+- A **symbolic** rule layer (the rules running today) is used three ways:
+  as a mask, as the starting point the network may only correct, and as a
+  checker on every output.
+- A planner rolls each rotation forward through many climate runs, so the
+  spread becomes a stated uncertainty, and an explainer reports the rules
+  that fired and the correction applied.
+
+**This is a design. It is not trained or running, and we claim no result for
+it.** We have not surveyed the literature, so we do not claim it is new to
+the field.
+
 ## Worked example
 
 Central Iowa (42.10, −93.55). Satellite crop maps show corn and soybean

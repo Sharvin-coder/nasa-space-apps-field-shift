@@ -17,6 +17,7 @@ import folium
 import streamlit as st
 from streamlit_folium import st_folium
 
+from fieldshift import model_design as md
 from fieldshift.analyst import analyse, build_payload
 from fieldshift.explain import (CROP_BENEFITS, GLOSSARY, HOW_COMBINED, REPLAY_NOTE,
                                 RESOLUTIONS, SATELLITE_VS_GROUND, SCENARIO_NOTE,
@@ -985,6 +986,55 @@ header[data-testid="stHeader"],
 # one tag colour per crop in "What do you grow now?", matching its strip ink
 EXTRA_CSS = """
 <style>
+.st-key-band-mast, .st-key-band-air, .st-key-band-model {
+  gap: 0 !important; padding: 0 var(--pad); color: var(--fg);
+  background-color: var(--bg); background-image: var(--grain-img);
+}
+.st-key-band-mast, .st-key-band-air {
+  --bg: var(--sky); --fg: var(--paper); --fg2: var(--sky-tint);
+  --rule: rgba(240, 237, 226, .28); --field: rgba(4, 34, 39, .32);
+}
+.st-key-band-air { padding-bottom: clamp(1.75rem, 3.4vw, 3rem); }
+.st-key-band-model {
+  --bg: var(--paper); --fg: var(--ink); --fg2: var(--ink-2); --ring: var(--barn);
+  --rule: rgba(31, 21, 13, .2); --field: rgba(31, 21, 13, .05);
+  background-image: var(--grain-soft); padding-bottom: clamp(2.25rem, 4.4vw, 4rem);
+}
+/* tabs */
+.stApp [data-testid="stTabs"] [role="tablist"] {
+  background: var(--sky) var(--grain-img); padding: 0 var(--pad); gap: .125rem;
+  position: sticky; top: 0; z-index: 60; border-bottom: 1.5px solid rgba(240, 237, 226, .28);
+}
+.stApp [data-testid="stTabs"] [role="tab"] { color: var(--paper); padding: .75rem 1rem; height: auto; }
+.stApp [data-testid="stTabs"] [role="tab"] p { font-size: 1rem; font-weight: 650; color: inherit; }
+.stApp [data-testid="stTabs"] [role="tab"][aria-selected="true"] { color: var(--gold); }
+.stApp [data-testid="stTabs"] [role="tab"]:hover { color: var(--gold); }
+.stApp [data-testid="stTabs"] [role="tabpanel"] { padding: 0 !important; }
+.stApp [data-testid="stTabs"] [role="tabpanel"] > [data-testid="stVerticalBlock"],
+.stApp [data-testid="stTabs"] [role="tabpanel"] > div > [data-testid="stVerticalBlock"] { gap: 0 !important; }
+/* the model tab */
+.mdl { max-width: 62rem; }
+.stApp .mdl p { margin-top: .625rem; font-size: 1rem; line-height: 1.5; color: var(--fg); }
+.stApp .mdl h3.group-h { margin-top: 2.25rem; }
+.stApp .mdl p.status { margin-top: 1rem; border: 1.5px solid var(--barn); padding: .625rem .875rem; font-weight: 600; }
+.stApp .mdl ol.arch { list-style: none; margin: 1.25rem 0 0; padding: 0; display: grid; gap: .625rem; }
+.stApp .mdl ol.arch > li {
+  display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); gap: .875rem; margin: 0;
+  padding: .875rem 1rem; border: 1.5px solid var(--rule); border-left: .5rem solid var(--leaf);
+  background: var(--field);
+}
+.stApp .mdl ol.arch > li.k-neural { border-left-color: var(--water); }
+.stApp .mdl ol.arch > li.k-symbolic { border-left-color: var(--barn); }
+.stApp .mdl ol.arch > li.k-search { border-left-color: var(--gold); }
+.mdl .arch-n { font: 900 1.625rem/1 var(--display); color: var(--fg); }
+.stApp .mdl .arch-name { margin: 0; font-size: 1.0625rem; font-weight: 700; color: var(--fg); }
+.mdl .arch-kind {
+  margin-left: .5rem; padding: .05rem .4rem; border: 1px solid currentColor; font-size: .6875rem;
+  font-weight: 650; letter-spacing: .05em; text-transform: uppercase; vertical-align: middle;
+}
+.stApp .mdl p.arch-uses { font-size: .875rem; color: var(--fg2); }
+.stApp .mdl ol.steps { margin: .75rem 0 0; padding-left: 1.25rem; }
+.stApp .mdl ol.steps > li { margin-top: .5rem; font-size: 1rem; line-height: 1.5; }
 .st-key-timemachine, .st-key-constraints { gap: .875rem !important; margin-top: 2.25rem; }
 .st-key-timemachine { margin-bottom: 1.5rem; }
 .st-key-constraints { max-width: 34rem; }
@@ -1724,6 +1774,48 @@ def fine_print(divider: str) -> None:
     """)
 
 
+def model_tab() -> None:
+    """What produces the numbers today, and the model we propose to build next."""
+    def pairs(items) -> str:
+        return "".join(f"<li><b>{esc(a)}.</b> {esc(b)}</li>" for a, b in items)
+
+    layers = "".join(
+        f'<li class="k-{esc(kind.split()[0])}"><span class="arch-n">{esc(n)}</span><div>'
+        f'<p class="arch-name">{esc(name)}<span class="arch-kind">{esc(kind)}</span></p>'
+        f'<p>{esc(what)}</p><p class="arch-uses"><b>Uses:</b> {esc(uses)}</p></div></li>'
+        for n, name, kind, what, uses in md.LAYERS)
+    risks = "".join(f"<li>{esc(r)}</li>" for r in md.RISKS)
+    with st.container(key="band-model"):
+        emit(f"""
+<section class="layer mdl" aria-label="The model">
+<h2 class="layer-h">The model</h2>
+<p class="lead">What produces the numbers today, and the learning model we designed to
+build on it.</p>
+
+<h3 class="group-h">What runs today: explicit rules</h3>
+<p>{esc(md.TODAY_INTRO)}</p>
+<ul class="fine-list">{pairs(md.TODAY_METHODS)}</ul>
+<p>{esc(md.MODELS_IN_THE_DATA)}</p>
+<p>{esc(md.WHY_NOT_ENOUGH)}</p>
+
+<h3 class="group-h">What we would build next: {esc(md.DESIGN_NAME[0].lower() + md.DESIGN_NAME[1:])}</h3>
+<p class="status">{esc(md.STATUS)}</p>
+<p>{esc(md.DESIGN_INTRO)}</p>
+<ol class="arch">{layers}</ol>
+
+<h3 class="group-h">What sets the design apart</h3>
+<ul class="fine-list">{pairs(md.DISTINCTIVE)}</ul>
+<p>{esc(md.NOVELTY_CAVEAT)}</p>
+
+<h3 class="group-h">How we would train and test it</h3>
+<ol class="steps">{pairs(md.PLAN)}</ol>
+
+<h3 class="group-h">Where it could go wrong</h3>
+<ul class="fine-list">{risks}</ul>
+</section>
+""")
+
+
 # ---------------------------------------------------------------------- state
 st.session_state.setdefault("lat", 42.10)
 st.session_state.setdefault("lon", -93.55)
@@ -1742,540 +1834,557 @@ LAT, LON = round(st.session_state.lat, 3), round(st.session_state.lon, 3)
 
 st.markdown(CSS + CSS_TAGS + EXTRA_CSS, unsafe_allow_html=True)
 
-# ================================================================== the sky
-sky = st.container(key="band-sky")
-with sky:
+# ========================================================= masthead and tabs
+with st.container(key="band-mast"):
     emit(f"""
 <header class="mast">
 <span class="mast-mark">{MARK}Farm Sight</span>
 <span class="mast-tag">NASA Space Apps Challenge 2026</span>
-<nav class="mast-nav" aria-label="About this tool">
-<a href="#fine-print">How it scores</a>
-</nav>
 </header>
-<div class="hero">
-<h1 class="hero-h"><span class="hl-1">Drop a pin.</span> <span class="hl-2">NASA data fills in the rest.</span></h1>
-<p class="hero-deck">Farm Sight reads the weather, soil, groundwater and crop history for
-the spot you pin, then ranks the crop rotations that fit it. It keeps what you grow now
-and shows its reasons.</p>
-</div>
 """)
+tab_field, tab_rotations, tab_measured, tab_model, tab_fine = st.tabs(
+    ["Your field", "Rotations", "Measurements", "The model", "Fine print"])
 
-    with st.container(key="hero-cols"):
-        map_col, plan_col = st.columns([7, 5])
-
-    # ------------------------------------------------------ the map plate
-    with map_col, st.container(key="plate"):
+with tab_field:
+    # ================================================================== the sky
+    sky = st.container(key="band-sky")
+    with sky:
         emit(f"""
-<div class="plat">
-<div><p class="plat-title">Your field at {esc(coord_text(LAT, LON))}</p>
-<p class="plat-sub">The dashed circle marks 160 acres around the pin.</p></div>
-<svg class="north" width="26" height="42" viewBox="0 0 26 42" role="img" aria-label="North is up"><title>North is up</title><text x="13" y="10" text-anchor="middle">N</text><path class="north-head" d="M13 14l5.5 11h-11z"/><path d="M13 25v15"/></svg>
-</div>
-""")
-        fmap = make_map(LAT, LON, st.session_state.get("map_style", "Hybrid"))
-        clicked = st_folium(fmap, height=384, use_container_width=True,
-                            returned_objects=["last_clicked"], key="map")
-        with st.container(key="plate-controls"):
-            lat_col, lon_col, style_col = st.columns([3, 3, 5], vertical_alignment="bottom")
-            with lat_col:
-                st.number_input("Latitude", -60.0, 75.0, step=0.001, format="%.3f", key="lat")
-            with lon_col:
-                st.number_input("Longitude", -180.0, 180.0, step=0.001, format="%.3f", key="lon")
-            with style_col:
-                st.radio("Map style", ["Hybrid", "Satellite", "Terrain"], horizontal=True,
-                         label_visibility="collapsed", key="map_style")
-            emit('<p class="plate-cap">Click the map to move the pin, or type its coordinates.</p>')
-            with st.container(key="examples"):
-                emit('<p class="plate-cap">Or try a worked example:</p>')
-                for name, spot in EXAMPLES.items():
-                    if st.button(name, key=f"example-{name}"):
-                        st.session_state.pending_click = spot
+    <div class="hero">
+    <h1 class="hero-h"><span class="hl-1">Drop a pin.</span> <span class="hl-2">NASA data fills in the rest.</span></h1>
+    <p class="hero-deck">Farm Sight reads the weather, soil, groundwater and crop history for
+    the spot you pin, then ranks the crop rotations that fit it. It keeps what you grow now
+    and shows its reasons.</p>
+    </div>
+    """)
+
+        with st.container(key="hero-cols"):
+            map_col, plan_col = st.columns([7, 5])
+
+        # ------------------------------------------------------ the map plate
+        with map_col, st.container(key="plate"):
+            emit(f"""
+    <div class="plat">
+    <div><p class="plat-title">Your field at {esc(coord_text(LAT, LON))}</p>
+    <p class="plat-sub">The dashed circle marks 160 acres around the pin.</p></div>
+    <svg class="north" width="26" height="42" viewBox="0 0 26 42" role="img" aria-label="North is up"><title>North is up</title><text x="13" y="10" text-anchor="middle">N</text><path class="north-head" d="M13 14l5.5 11h-11z"/><path d="M13 25v15"/></svg>
+    </div>
+    """)
+            fmap = make_map(LAT, LON, st.session_state.get("map_style", "Hybrid"))
+            clicked = st_folium(fmap, height=384, use_container_width=True,
+                                returned_objects=["last_clicked"], key="map")
+            with st.container(key="plate-controls"):
+                lat_col, lon_col, style_col = st.columns([3, 3, 5], vertical_alignment="bottom")
+                with lat_col:
+                    st.number_input("Latitude", -60.0, 75.0, step=0.001, format="%.3f", key="lat")
+                with lon_col:
+                    st.number_input("Longitude", -180.0, 180.0, step=0.001, format="%.3f", key="lon")
+                with style_col:
+                    st.radio("Map style", ["Hybrid", "Satellite", "Terrain"], horizontal=True,
+                             label_visibility="collapsed", key="map_style")
+                emit('<p class="plate-cap">Click the map to move the pin, or type its coordinates.</p>')
+                with st.container(key="examples"):
+                    emit('<p class="plate-cap">Or try a worked example:</p>')
+                    for name, spot in EXAMPLES.items():
+                        if st.button(name, key=f"example-{name}"):
+                            st.session_state.pending_click = spot
+                            st.rerun()
+
+            click = (clicked or {}).get("last_clicked")
+            if click:
+                new = (round(click["lat"], 3), round(click["lng"], 3))
+                # act on each click once, so typed coordinates are not overwritten later
+                if new != st.session_state.get("handled_click"):
+                    st.session_state.handled_click = new
+                    st.session_state.pending_click = new
+                    st.rerun()
+
+        # ----------------------------------------------------- fetch the data
+        with plan_col:
+            plan = st.container(key="plan")
+        with plan:
+            waiting = st.empty()
+            if st.session_state.get("read_for") != (LAT, LON):
+                with waiting:
+                    emit("""
+    <div class="loading" role="status">
+    <ol class="strips is-loading" style="--n:4" aria-hidden="true"><li style="--i:0"><span class="strip-cell"></span></li><li style="--i:1"><span class="strip-cell"></span></li><li style="--i:2"><span class="strip-cell"></span></li><li style="--i:3"><span class="strip-cell"></span></li></ol>
+    <p>Reading NASA climate, groundwater, terrain and soil data for this spot. A new location
+    takes about ten seconds while six data services answer.</p>
+    </div>
+    """)
+        fp = None
+        fetch_error = None
+        try:
+            fp = site_data(LAT, LON, DATA_VERSION)
+            st.session_state.read_for = (LAT, LON)
+        except Exception as exc:  # keep the map alive so the pin can be moved
+            fetch_error = exc
+        waiting.empty()
+
+        # crops seen here by satellite become the starting answer for a new location
+        detected = detected_crops(fp) if fp else []
+        if fp and st.session_state.get("crops_for") != (LAT, LON):
+            st.session_state.crops_for = (LAT, LON)
+            if detected:
+                st.session_state.current = detected[:3]
+        st.session_state.setdefault("current", ["corn", "soybean"])
+
+        # every control is read from session state, so each can sit beside what it changes
+        current = [n for n in st.session_state.current if n in CROPS]
+        weights = {"fit": st.session_state.w_fit, "soil": st.session_state.w_soil,
+                   "water": st.session_state.w_water}
+        irrigated = bool(st.session_state.get("irrigated", False))
+        use_ph = bool(st.session_state.get("use_ph", False))
+        ph = float(st.session_state.get("ph_value", 6.5)) if use_ph else None
+
+        exclude = tuple(n for n in st.session_state.exclude if n in CROPS and n not in current)
+        sc_year = int(st.session_state.sc_year)
+        sc_temp = float(st.session_state.sc_temp)
+        sc_rain = int(st.session_state.sc_rain)
+        scenario = None
+        if sc_year != TODAY_YEAR or sc_temp or sc_rain:
+            scenario = {"year_fraction": (sc_year - TODAY_YEAR) / (FUTURE_YEAR - TODAY_YEAR),
+                        "temp_delta": sc_temp, "rain_pct": sc_rain}
+
+        res = None
+        base_res = None      # the ranking with today's climate, when a scenario is on
+        rec_error = None
+        if fp is not None and sum(weights.values()) > 0:
+            try:
+                overrides = {"ph": ph, "irrigated": irrigated or None}
+                res = recommend(LAT, LON, weights, top=5, current=tuple(current), fp=fp,
+                                overrides=overrides, scenario=scenario, exclude=exclude)
+                if scenario:
+                    base_res = recommend(LAT, LON, weights, top=5, current=tuple(current), fp=fp,
+                                         overrides=overrides, exclude=exclude)
+            except Exception as exc:
+                rec_error = exc
+
+        baseline = res["current_rotation"] if res else None
+        recs = res["recommendations"] if res else []
+        top = recs[0] if recs else None
+        slots = max([len(r["rotation"]) for r in recs] + [len(baseline["rotation"]) if baseline else 0, 2])
+
+        # the strips replay their planting pass whenever the ranking changes
+        signature = (LAT, LON, tuple(tuple(r["rotation"]) for r in recs),
+                     tuple(baseline["rotation"]) if baseline else ())
+        if st.session_state.get("rank_signature") != signature:
+            st.session_state.rank_signature = signature
+            st.session_state.flip = 1 - st.session_state.get("flip", 0)
+        flip = st.session_state.get("flip", 0)
+
+        # ------------------------------------------------------ the plan plate
+        with plan:
+            emit('<h2 class="plan-h">The shift for this field</h2>')
+            st.multiselect("What do you grow now?", crop_names, key="current",
+                           max_selections=3, placeholder="Add a crop")
+            if detected:
+                crop_note = ("Pre-filled from USDA satellite crop maps for this spot. "
+                             "Change it if it is wrong.")
+            elif fp and fp["criteria"].get("c19_crop_sequence"):
+                crop_note = ("USDA crop maps show no field crop at this exact spot. "
+                             "Pick what you grow.")
+            else:
+                crop_note = "Crop history is not available at this spot. Pick what you grow."
+            emit(f'<p class="plan-note">{esc(crop_note)}</p>')
+
+            if fp is None:
+                emit(f"""
+    <div class="plan-msg"><b>Could not read this spot.</b> {esc(fetch_error)}. Move the pin onto
+    farmland, or try again in a moment.</div>
+    """)
+                if st.button("Try again", key="retry-all"):
+                    site_data.clear()
+                    st.rerun()
+            elif sum(weights.values()) == 0:
+                emit('<div class="plan-msg">Set at least one priority above zero to rank '
+                     'rotations. The three sliders are in the Rotations tab.</div>')
+            elif rec_error is not None:
+                emit(f'<div class="plan-msg">{esc(rec_error)}</div>')
+            elif not top:
+                emit('<div class="plan-msg">No rotation fits this field yet. Try fewer current '
+                     'crops or move the pin.</div>')
+            else:
+                added = [n for n in top["rotation"] if n not in current]
+                kept = [n for n in top["rotation"] if n in current]
+                rows = ""
+                if baseline:
+                    rows += f"""
+    <div class="shift-row">
+    <div class="shift-head"><span class="shift-label">Now</span><span class="shift-score">{baseline['score']:.2f}</span></div>
+    {strips_html(baseline['rotation'], slots=slots, flip=flip, delay_ms=350)}
+    </div>
+    """
+                rows += f"""
+    <div class="shift-row is-next">
+    <div class="shift-head"><span class="shift-label">Shift to</span><span class="shift-score">{delta_html(top['score'], baseline['score']) if baseline else ''}{top['score']:.2f}</span></div>
+    {strips_html(top['rotation'], slots=slots, added=added if baseline else (), flip=flip, delay_ms=560)}
+    </div>
+    """
+                met_top = sum(1 for ok in top["soil_checks"].values() if ok)
+                if baseline:
+                    met_now = sum(1 for ok in baseline["soil_checks"].values() if ok)
+                    if met_top > met_now:
+                        checks = f"Meets {met_top} of 4 soil-health checks, up from {met_now}."
+                    else:
+                        checks = f"Meets {met_top} of 4 soil-health checks; your rotation now meets {met_now}."
+                    summary = (f"Keeps <b>{esc(join_words(kept))}</b> and adds "
+                               f"<b>{esc(join_words(added))}</b>. {checks}")
+                else:
+                    summary = (f"Meets {met_top} of 4 soil-health checks. Pick the crops you grow "
+                               "now to compare against your current rotation.")
+                emit(f"""
+    <div class="shift">{rows}</div>
+    <p class="plan-sum">{summary}</p>
+    <p class="small plan-key">Overall score from 0 to 1, weighted by your priorities. One strip is one year.</p>
+    """)
+                with st.expander("Why this shift"):
+                    emit(why_html(top))
+                ai_panel(res)
+                if fp["notes"]:
+                    emit('<p class="plan-note"><b>Some data could not be fetched.</b> '
+                         "See the Measurements tab for what is missing.</p>")
+                if scenario:
+                    emit('<p class="plan-note"><b>What-if scenario on.</b> These scores use the '
+                         'shifted climate set in the climate time machine (Rotations tab), '
+                         "not today's.</p>")
+                st.download_button(
+                    "Download the one-page farm report",
+                    data=build_report(res, {"current": current, "weights": weights,
+                                            "irrigated": irrigated, "ph": ph,
+                                            "exclude": list(exclude)}, APP_URL),
+                    file_name=f"farm-sight-report_{LAT}_{LON}.html", mime="text/html",
+                    key="report", icon=":material/description:")
+                others = len(recs) - 1
+                if others > 0:
+                    emit(f'<p class="plan-more">{others} more option{"s" if others != 1 else ""} '
+                         'in the <b>Rotations</b> tab</p>')
+
+
+if fp is None:
+    with tab_fine:
+        fine_print("")
+    st.stop()
+
+with tab_rotations:
+    # ============================================================== the horizon
+    horizon_inks = ([GROUPS[CROPS[n]["group"]][0] for n in top["rotation"]] if top
+                    else ["corn", "grain", "squash", "hay"])
+    emit(horizon_html(horizon_inks))
+
+    # ============================================= the field: rotations, ranked
+    with st.container(key="band-leaf"):
+        if res:
+            driest = ", ".join(str(y) for y, _r, _t in res["site"]["driest_years"])
+            rot_lead = (f"Ranked from this field's ten-year temperature and rainfall, its three "
+                        f"driest years ({driest}), soil pH and texture, and the three priorities "
+                        f"below. Every option keeps what you grow now and adds to it.")
+        elif sum(weights.values()) == 0:
+            rot_lead = "Set at least one priority above zero to rank rotations."
+        else:
+            rot_lead = "Ranked by your priorities and the criteria measured for this field."
+        emit(f"""
+    <section class="layer" id="rotations" aria-label="Rotations, ranked for this field">
+    <h2 class="layer-h">Rotations, ranked for this field</h2>
+    <p class="lead">{esc(rot_lead)}</p>
+    </section>
+    """)
+
+        with st.container(key="priorities"):
+            emit('<div class="group-head"><h3 class="group-h">What matters most to you?</h3>'
+                 '<p class="small">Slide each from 0 to 5. The ranking re-forms as you move them.</p></div>')
+            fit_col, soil_col, water_col = st.columns(3, gap="large")
+            with fit_col:
+                st.slider("Climate fit", 0, 5, key="w_fit")
+            with soil_col:
+                st.slider("Soil health", 0, 5, key="w_soil")
+            with water_col:
+                st.slider("Water saving", 0, 5, key="w_water")
+
+        with st.container(key="constraints"):
+            emit('<div class="group-head"><h3 class="group-h">Anything you cannot grow?</h3>'
+                 '<p class="small">Rule out crops you have no equipment, market or contract for. '
+                 "They will not be added to any option.</p></div>")
+            st.multiselect("Crops to leave out", crop_names,
+                           key="exclude", placeholder="None ruled out",
+                           label_visibility="collapsed")
+
+        with st.container(key="timemachine"):
+            emit('<div class="group-head"><h3 class="group-h">Climate time machine</h3>'
+                 f'<p class="small">{esc(SCENARIO_NOTE)}</p></div>')
+            year_col, temp_col, rain_col = st.columns(3, gap="large")
+            with year_col:
+                st.slider(f"Climate of the year ({TODAY_YEAR} is today)", TODAY_YEAR, FUTURE_YEAR,
+                          key="sc_year")
+            with temp_col:
+                st.slider("Warmer or cooler, °C", -2.0, 4.0, step=0.5, format="%+.1f", key="sc_temp")
+            with rain_col:
+                st.slider("Wetter or drier, % rain", -30, 30, step=5, format="%+d", key="sc_rain")
+            if scenario and res:
+                site_now = res["site"]
+                observed = site_now["observed"]
+                line = (f"<b>Scenario on.</b> Scoring with a growing-season temperature of "
+                        f"<b>{site_now['temp']:.1f} °C</b> (measured {observed['temp']:.1f}) and "
+                        f"annual rain of <b>{site_now['rain']:.0f} mm</b> (measured "
+                        f"{observed['rain']:.0f}). The tags beside each score show where the "
+                        "rotation ranks with today's climate.")
+                if sc_year != TODAY_YEAR and not site_now["scenario"]["projection_used"]:
+                    line += (" No 2040 projection is available for this location, so the year "
+                             "slider has no effect here.")
+                emit(f'<p class="scn">{line}</p>')
+                st.button("Back to today's climate", key="sc-reset", on_click=reset_scenario)
+
+        if sum(weights.values()) == 0:
+            emit(f'<div class="problem" style="margin-top:1.5rem">{icon("alert", 16)}<span>Every '
+                 "priority is at zero, so there is nothing to rank by. Raise at least one.</span></div>")
+        elif rec_error is not None:
+            emit(f'<div class="problem" style="margin-top:1.5rem">{icon("alert", 16)}'
+                 f"<span>{esc(rec_error)}</span></div>")
+        else:
+            legend = "".join(f'<span><i style="--c:var(--{ink})"></i>{esc(name)}</span>'
+                             for ink, name in GROUPS.values())
+            emit(f"""
+    <div class="legend" aria-label="What the strips show">
+    {legend}
+    <span>{icon('legume', 15)}legume</span>
+    <span>{icon('sod', 15)}perennial sod crop</span>
+    <span>{icon('residue', 15)}high residue</span>
+    <span><b class="strip-tag">{icon('plus', 11)}</b>added to what you grow now</span>
+    </div>
+    <p class="small" style="margin-top:.4rem">A strip's colour is its crop's functional group.
+    The four soil-health checks count the colours and the three marks.</p>
+    <div class="sch">
+    <div class="sch-head" aria-hidden="true">
+    <span>Rank</span><span>One cycle, a strip per year</span>
+    <div class="sch-cols"><span>Overall score</span><span>Climate fit</span><span>Soil checks</span><span>Water saving</span><span>Fit in 2040</span></div>
+    </div>
+    </div>
+    """)
+            with st.container(key="ranked"):
+                if baseline:
+                    with st.container(key="rank-now"):
+                        emit(schedule_row(baseline, rank=None, baseline=None, slots=slots,
+                                          current=current, flip=flip))
+                        with st.expander(f"Why your rotation now scores {baseline['score']:.2f}"):
+                            emit(why_html(baseline))
+                else:
+                    with st.container(key="rank-now"):
+                        emit('<div class="problem">Pick the crops you grow now, in the plan beside '
+                             "the map, to compare these options against your current rotation.</div>")
+                if not recs:
+                    with st.container(key="rank-none"):
+                        emit(f'<div class="problem">{icon("alert", 16)}<span>No rotation fits this '
+                             "field yet. Try fewer current crops or move the pin.</span></div>")
+                for index, r in enumerate(recs, 1):
+                    with st.container(key=f"rank-{index}"):
+                        emit(schedule_row(r, rank=index, baseline=baseline, slots=slots,
+                                          current=current, flip=flip,
+                                          moved=moved_html(r, index, base_res)))
+                        with st.expander(f"Why option {index} scores {r['score']:.2f}"):
+                            emit(why_html(r))
+
+            site = res["site"]
+            foot = ("Dry-year check uses this location's three driest years: "
+                    + ", ".join(f"{y} ({r:.0f} mm)" for y, r, _ in site["driest_years"]) + ". "
+                    + (f"Soil texture class: {site['texture']}. " if site["texture"] else
+                       "Soil texture missing, not checked. ")
+                    + (f"Not offered here (poor climate fit): {', '.join(res['crops_not_offered'])}."
+                       if res["crops_not_offered"] else ""))
+            emit(f'<p class="small sch-foot">{esc(foot)}</p>')
+            if res.get("crops_excluded"):
+                emit('<p class="small sch-foot">Left out at your request: '
+                     f'{esc(", ".join(res["crops_excluded"]))}.</p>')
+
+            replay = replay_html(res, baseline, recs)
+            if replay:
+                with st.container(key="replay"):
+                    emit('<div class="group-head"><h3 class="group-h">Ten-year replay</h3>'
+                         f'<p class="small">{esc(REPLAY_NOTE)}</p></div>' + replay)
+            with st.expander("Why these kinds of crops help the soil"):
+                emit(benefits_html()
+                     + '<p class="small" style="margin-top:.75rem">Paraphrased from USDA NRCS '
+                     "Conservation Practice Standard 328, Conservation Crop Rotation, and FAO "
+                     "EcoCrop.</p>")
+        emit('<div class="layer-end"></div>')
+
+
+with tab_measured:
+    with st.container(key="band-air"):
+        # ------------------------------------------------- what the pin filled in
+        if fp is not None:
+            c = fp["criteria"]
+            filled = sum(1 for key in CRITERIA if is_filled(key, c))
+            emit(f"""
+    <div class="intro" id="measured">
+    <p class="intro-big"><b>{filled} of {len(CRITERIA)}</b> measurements filled in for this spot
+    from NASA and open data. You typed none of them.</p>
+    <div>
+    <p class="small">They are laid out the way they sit in the field: the air, the surface,
+    the soil, then the water under it.</p>
+    <p class="keyline" style="margin-top:.5rem">
+    {verdict_html('favourable', 'good')}{verdict_html('worth noting', 'note')}{verdict_html('watch', 'watch')}{verdict_html('concern', 'concern')}{verdict_html('neutral', 'plain')}
+    </p>
+    <p class="small" style="margin-top:.35rem">The plain-word verdicts use cut-offs we chose
+    ourselves as rules of thumb. They are not part of the data and never change the ranking.</p>
+    </div>
+    </div>
+    """)
+            with st.expander("Glossary: what the terms on this page mean"):
+                emit(glossary_html())
+            if fp["notes"]:
+                with st.container(key="problems"):
+                    emit("".join(f'<div class="problem">{icon("alert", 16)}<span>{esc(note)}</span></div>'
+                                 for note in fp["notes"]))
+                    if st.button("Retry the missing data", key="retry-missing"):
+                        site_data.clear()
                         st.rerun()
 
-        click = (clicked or {}).get("last_clicked")
-        if click:
-            new = (round(click["lat"], 3), round(click["lng"], 3))
-            # act on each click once, so typed coordinates are not overwritten later
-            if new != st.session_state.get("handled_click"):
-                st.session_state.handled_click = new
-                st.session_state.pending_click = new
-                st.rerun()
-
-    # ----------------------------------------------------- fetch the data
-    with plan_col:
-        plan = st.container(key="plan")
-    with plan:
-        waiting = st.empty()
-        if st.session_state.get("read_for") != (LAT, LON):
-            with waiting:
-                emit("""
-<div class="loading" role="status">
-<ol class="strips is-loading" style="--n:4" aria-hidden="true"><li style="--i:0"><span class="strip-cell"></span></li><li style="--i:1"><span class="strip-cell"></span></li><li style="--i:2"><span class="strip-cell"></span></li><li style="--i:3"><span class="strip-cell"></span></li></ol>
-<p>Reading NASA climate, groundwater, terrain and soil data for this spot. A new location
-takes about ten seconds while six data services answer.</p>
-</div>
-""")
-    fp = None
-    fetch_error = None
-    try:
-        fp = site_data(LAT, LON, DATA_VERSION)
-        st.session_state.read_for = (LAT, LON)
-    except Exception as exc:  # keep the map alive so the pin can be moved
-        fetch_error = exc
-    waiting.empty()
-
-    # crops seen here by satellite become the starting answer for a new location
-    detected = detected_crops(fp) if fp else []
-    if fp and st.session_state.get("crops_for") != (LAT, LON):
-        st.session_state.crops_for = (LAT, LON)
-        if detected:
-            st.session_state.current = detected[:3]
-    st.session_state.setdefault("current", ["corn", "soybean"])
-
-    # every control is read from session state, so each can sit beside what it changes
-    current = [n for n in st.session_state.current if n in CROPS]
-    weights = {"fit": st.session_state.w_fit, "soil": st.session_state.w_soil,
-               "water": st.session_state.w_water}
-    irrigated = bool(st.session_state.get("irrigated", False))
-    use_ph = bool(st.session_state.get("use_ph", False))
-    ph = float(st.session_state.get("ph_value", 6.5)) if use_ph else None
-
-    exclude = tuple(n for n in st.session_state.exclude if n in CROPS and n not in current)
-    sc_year = int(st.session_state.sc_year)
-    sc_temp = float(st.session_state.sc_temp)
-    sc_rain = int(st.session_state.sc_rain)
-    scenario = None
-    if sc_year != TODAY_YEAR or sc_temp or sc_rain:
-        scenario = {"year_fraction": (sc_year - TODAY_YEAR) / (FUTURE_YEAR - TODAY_YEAR),
-                    "temp_delta": sc_temp, "rain_pct": sc_rain}
-
-    res = None
-    base_res = None      # the ranking with today's climate, when a scenario is on
-    rec_error = None
-    if fp is not None and sum(weights.values()) > 0:
-        try:
-            overrides = {"ph": ph, "irrigated": irrigated or None}
-            res = recommend(LAT, LON, weights, top=5, current=tuple(current), fp=fp,
-                            overrides=overrides, scenario=scenario, exclude=exclude)
-            if scenario:
-                base_res = recommend(LAT, LON, weights, top=5, current=tuple(current), fp=fp,
-                                     overrides=overrides, exclude=exclude)
-        except Exception as exc:
-            rec_error = exc
-
-    baseline = res["current_rotation"] if res else None
-    recs = res["recommendations"] if res else []
-    top = recs[0] if recs else None
-    slots = max([len(r["rotation"]) for r in recs] + [len(baseline["rotation"]) if baseline else 0, 2])
-
-    # the strips replay their planting pass whenever the ranking changes
-    signature = (LAT, LON, tuple(tuple(r["rotation"]) for r in recs),
-                 tuple(baseline["rotation"]) if baseline else ())
-    if st.session_state.get("rank_signature") != signature:
-        st.session_state.rank_signature = signature
-        st.session_state.flip = 1 - st.session_state.get("flip", 0)
-    flip = st.session_state.get("flip", 0)
-
-    # ------------------------------------------------------ the plan plate
-    with plan:
-        emit('<h2 class="plan-h">The shift for this field</h2>')
-        st.multiselect("What do you grow now?", crop_names, key="current",
-                       max_selections=3, placeholder="Add a crop")
-        if detected:
-            crop_note = ("Pre-filled from USDA satellite crop maps for this spot. "
-                         "Change it if it is wrong.")
-        elif fp and fp["criteria"].get("c19_crop_sequence"):
-            crop_note = ("USDA crop maps show no field crop at this exact spot. "
-                         "Pick what you grow.")
-        else:
-            crop_note = "Crop history is not available at this spot. Pick what you grow."
-        emit(f'<p class="plan-note">{esc(crop_note)}</p>')
-
-        if fp is None:
+            dry_chart = history_bars(
+                c.get("_season_rain_by_year_mm") or {}, marked=c.get("c09_dry_years") or (),
+                unit=" mm", label="Growing-season rainfall for each year, dry seasons highlighted")
+            if dry_chart:
+                dry_chart += ('<p class="hist-cap">Growing-season rainfall each year. '
+                              "Dry seasons are the lit bars.</p>")
             emit(f"""
-<div class="plan-msg"><b>Could not read this spot.</b> {esc(fetch_error)}. Move the pin onto
-farmland, or try again in a moment.</div>
-""")
-            if st.button("Try again", key="retry-all"):
-                site_data.clear()
-                st.rerun()
-        elif sum(weights.values()) == 0:
-            emit('<div class="plan-msg">Set at least one priority above zero to rank '
-                 'rotations. The three sliders are under <a href="#rotations">Rotations, '
-                 'ranked</a>.</div>')
-        elif rec_error is not None:
-            emit(f'<div class="plan-msg">{esc(rec_error)}</div>')
-        elif not top:
-            emit('<div class="plan-msg">No rotation fits this field yet. Try fewer current '
-                 'crops or move the pin.</div>')
-        else:
-            added = [n for n in top["rotation"] if n not in current]
-            kept = [n for n in top["rotation"] if n in current]
-            rows = ""
-            if baseline:
-                rows += f"""
-<div class="shift-row">
-<div class="shift-head"><span class="shift-label">Now</span><span class="shift-score">{baseline['score']:.2f}</span></div>
-{strips_html(baseline['rotation'], slots=slots, flip=flip, delay_ms=350)}
-</div>
-"""
-            rows += f"""
-<div class="shift-row is-next">
-<div class="shift-head"><span class="shift-label">Shift to</span><span class="shift-score">{delta_html(top['score'], baseline['score']) if baseline else ''}{top['score']:.2f}</span></div>
-{strips_html(top['rotation'], slots=slots, added=added if baseline else (), flip=flip, delay_ms=560)}
-</div>
-"""
-            met_top = sum(1 for ok in top["soil_checks"].values() if ok)
-            if baseline:
-                met_now = sum(1 for ok in baseline["soil_checks"].values() if ok)
-                if met_top > met_now:
-                    checks = f"Meets {met_top} of 4 soil-health checks, up from {met_now}."
-                else:
-                    checks = f"Meets {met_top} of 4 soil-health checks; your rotation now meets {met_now}."
-                summary = (f"Keeps <b>{esc(join_words(kept))}</b> and adds "
-                           f"<b>{esc(join_words(added))}</b>. {checks}")
-            else:
-                summary = (f"Meets {met_top} of 4 soil-health checks. Pick the crops you grow "
-                           "now to compare against your current rotation.")
-            emit(f"""
-<div class="shift">{rows}</div>
-<p class="plan-sum">{summary}</p>
-<p class="small plan-key">Overall score from 0 to 1, weighted by your priorities. One strip is one year.</p>
-""")
-            with st.expander("Why this shift"):
-                emit(why_html(top))
-            ai_panel(res)
-            if scenario:
-                emit('<p class="plan-note"><b>What-if scenario on.</b> These scores use the '
-                     'shifted climate set in the <a href="#rotations">climate time machine</a>, '
-                     "not today's.</p>")
-            st.download_button(
-                "Download the one-page farm report",
-                data=build_report(res, {"current": current, "weights": weights,
-                                        "irrigated": irrigated, "ph": ph,
-                                        "exclude": list(exclude)}, APP_URL),
-                file_name=f"farm-sight-report_{LAT}_{LON}.html", mime="text/html",
-                key="report", icon=":material/description:")
-            others = len(recs) - 1
-            if others > 0:
-                emit(f'<p class="plan-more"><a href="#rotations">{icon("down", 15)}'
-                     f'{others} more option{"s" if others != 1 else ""}, ranked</a></p>')
-
-    # ------------------------------------------------- what the pin filled in
-    if fp is not None:
-        c = fp["criteria"]
-        filled = sum(1 for key in CRITERIA if is_filled(key, c))
-        emit(f"""
-<div class="intro" id="measured">
-<p class="intro-big"><b>{filled} of {len(CRITERIA)}</b> measurements filled in for this spot
-from NASA and open data. You typed none of them.</p>
-<div>
-<p class="small">They are laid out the way they sit in the field: the air, the surface,
-the soil, then the water under it.</p>
-<p class="keyline" style="margin-top:.5rem">
-{verdict_html('favourable', 'good')}{verdict_html('worth noting', 'note')}{verdict_html('watch', 'watch')}{verdict_html('concern', 'concern')}{verdict_html('neutral', 'plain')}
-</p>
-<p class="small" style="margin-top:.35rem">The plain-word verdicts use cut-offs we chose
-ourselves as rules of thumb. They are not part of the data and never change the ranking.</p>
-</div>
-</div>
-""")
-        with st.expander("Glossary: what the terms on this page mean"):
-            emit(glossary_html())
-        if fp["notes"]:
-            with st.container(key="problems"):
-                emit("".join(f'<div class="problem">{icon("alert", 16)}<span>{esc(note)}</span></div>'
-                             for note in fp["notes"]))
-                if st.button("Retry the missing data", key="retry-missing"):
+    <section class="layer" aria-label="In the air">
+    <h2 class="layer-h">In the air</h2>
+    <p class="lead">Ten years of daily weather, {START_YEAR} to {END_YEAR}, and the change projected for 2040.
+    These values come from a NASA grid cell about 50 km wide, so nearby fields share them.</p>
+    <div class="ledgers">
+    <div>
+    <h3 class="group-h">Rain</h3>
+    <ul class="ledger">
+    {ledger_row('c01_season_rain_mm', c)}
+    {ledger_row('annual_rain_mm', c)}
+    {ledger_row('c15_annual_rain_change_2040_pct', c, sub=True)}
+    {ledger_row('c07_season_rain_cv', c)}
+    {ledger_row('c06_aridity_index', c)}
+    {ledger_row('c09_dry_years', c, extra=dry_chart)}
+    </ul>
+    </div>
+    <div>
+    <h3 class="group-h">Heat and season</h3>
+    <ul class="ledger">
+    {ledger_row('season_mean_temp_c', c)}
+    {ledger_row('c14_season_temp_change_2040_c', c, sub=True)}
+    {ledger_row('c02_season_gdd_c', c)}
+    {ledger_row('c03_heat_days_per_season', c)}
+    {ledger_row('c04_frost_free_days', c)}
+    {ledger_row('c05_season_solar_mj_m2_day', c)}
+    </ul>
+    </div>
+    </div>
+    </section>
+    """)
+            with st.container(key="refetch"):
+                if st.button("Fetch this field's data again", icon=":material/refresh:",
+                             key="refresh-feeds"):
                     site_data.clear()
                     st.rerun()
 
-        dry_chart = history_bars(
-            c.get("_season_rain_by_year_mm") or {}, marked=c.get("c09_dry_years") or (),
-            unit=" mm", label="Growing-season rainfall for each year, dry seasons highlighted")
-        if dry_chart:
-            dry_chart += ('<p class="hist-cap">Growing-season rainfall each year. '
-                          "Dry seasons are the lit bars.</p>")
+    # ============================================== the surface: what grew here
+    emit(edge("sky", "grain", 0))
+    with st.container(key="band-gold"):
+        c = fp["criteria"]
+        seq = c.get("c19_crop_sequence") or {}
+        history = (history_strips(seq) if seq else
+                   '<span class="slot">no field crop registered at this spot</span>')
+        num, label, _unit, _digits, source = CRITERIA["c19_crop_sequence"]
         emit(f"""
-<section class="layer" aria-label="In the air">
-<h2 class="layer-h">In the air</h2>
-<p class="lead">Ten years of daily weather, {START_YEAR} to {END_YEAR}, and the change projected for 2040.
-These values come from a NASA grid cell about 50 km wide, so nearby fields share them.</p>
-<div class="ledgers">
-<div>
-<h3 class="group-h">Rain</h3>
-<ul class="ledger">
-{ledger_row('c01_season_rain_mm', c)}
-{ledger_row('annual_rain_mm', c)}
-{ledger_row('c15_annual_rain_change_2040_pct', c, sub=True)}
-{ledger_row('c07_season_rain_cv', c)}
-{ledger_row('c06_aridity_index', c)}
-{ledger_row('c09_dry_years', c, extra=dry_chart)}
-</ul>
-</div>
-<div>
-<h3 class="group-h">Heat and season</h3>
-<ul class="ledger">
-{ledger_row('season_mean_temp_c', c)}
-{ledger_row('c14_season_temp_change_2040_c', c, sub=True)}
-{ledger_row('c02_season_gdd_c', c)}
-{ledger_row('c03_heat_days_per_season', c)}
-{ledger_row('c04_frost_free_days', c)}
-{ledger_row('c05_season_solar_mj_m2_day', c)}
-</ul>
-</div>
-</div>
-</section>
-""")
-        with st.container(key="refetch"):
-            if st.button("Fetch this field's data again", icon=":material/refresh:",
-                         key="refresh-feeds"):
-                site_data.clear()
-                st.rerun()
+    <section class="layer layer-end" aria-label="On the surface">
+    <h2 class="layer-h">On the surface</h2>
+    <p class="lead">What satellites saw growing at the pin, and the lie of the land. Crop history
+    is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns no crop.
+    Greenness is read for a 250 m pixel, which can straddle two fields near an edge.</p>
+    <div class="ledgers is-three">
+    <div>
+    <ul class="ledger">
+    <li class="lg-row"><span class="lg-num">{esc(num)}</span>
+    <div class="lg-main"><span class="lg-name">{esc(label)}</span></div>
+    <div class="lg-meta"><span>{esc(source)}</span></div>
+    <div class="lg-extra">{history}</div></li>
+    </ul>
+    </div>
+    <div>
+    <ul class="ledger">
+    {ledger_row('c11_slope_pct', c)}
+    {''.join(slot_row(*row) for row in UNWIRED)}
+    </ul>
+    </div>
+    <div>
+    <ul class="ledger">
+    {ledger_row('c12_peak_ndvi_mean', c, extra=ndvi_bars(c.get('_peak_ndvi_by_year') or {}, set(c.get('c09_dry_years') or [])))}
+    {ledger_row('c12_greenness_trend_per_decade', c, sub=True)}
+    {ledger_row('c13_greenness_drop_dry_years', c)}
+    </ul>
+    </div>
+    </div>
+    </section>
+    """)
 
-if fp is None:
-    fine_print(edge("sky", "paper", 2))
-    st.stop()
-
-# ============================================================== the horizon
-horizon_inks = ([GROUPS[CROPS[n]["group"]][0] for n in top["rotation"]] if top
-                else ["corn", "grain", "squash", "hay"])
-emit(horizon_html(horizon_inks))
-
-# ============================================= the field: rotations, ranked
-with st.container(key="band-leaf"):
-    if res:
-        driest = ", ".join(str(y) for y, _r, _t in res["site"]["driest_years"])
-        rot_lead = (f"Ranked from this field's ten-year temperature and rainfall, its three "
-                    f"driest years ({driest}), soil pH and texture, and the three priorities "
-                    f"below. Every option keeps what you grow now and adds to it.")
-    elif sum(weights.values()) == 0:
-        rot_lead = "Set at least one priority above zero to rank rotations."
-    else:
-        rot_lead = "Ranked by your priorities and the criteria measured for this field."
-    emit(f"""
-<section class="layer" id="rotations" aria-label="Rotations, ranked for this field">
-<h2 class="layer-h">Rotations, ranked for this field</h2>
-<p class="lead">{esc(rot_lead)}</p>
-</section>
-""")
-
-    with st.container(key="priorities"):
-        emit('<div class="group-head"><h3 class="group-h">What matters most to you?</h3>'
-             '<p class="small">Slide each from 0 to 5. The ranking re-forms as you move them.</p></div>')
-        fit_col, soil_col, water_col = st.columns(3, gap="large")
-        with fit_col:
-            st.slider("Climate fit", 0, 5, key="w_fit")
-        with soil_col:
-            st.slider("Soil health", 0, 5, key="w_soil")
-        with water_col:
-            st.slider("Water saving", 0, 5, key="w_water")
-
-    with st.container(key="constraints"):
-        emit('<div class="group-head"><h3 class="group-h">Anything you cannot grow?</h3>'
-             '<p class="small">Rule out crops you have no equipment, market or contract for. '
-             "They will not be added to any option.</p></div>")
-        st.multiselect("Crops to leave out", crop_names,
-                       key="exclude", placeholder="None ruled out",
-                       label_visibility="collapsed")
-
-    with st.container(key="timemachine"):
-        emit('<div class="group-head"><h3 class="group-h">Climate time machine</h3>'
-             f'<p class="small">{esc(SCENARIO_NOTE)}</p></div>')
-        year_col, temp_col, rain_col = st.columns(3, gap="large")
-        with year_col:
-            st.slider(f"Climate of the year ({TODAY_YEAR} is today)", TODAY_YEAR, FUTURE_YEAR,
-                      key="sc_year")
-        with temp_col:
-            st.slider("Warmer or cooler, °C", -2.0, 4.0, step=0.5, format="%+.1f", key="sc_temp")
-        with rain_col:
-            st.slider("Wetter or drier, % rain", -30, 30, step=5, format="%+d", key="sc_rain")
-        if scenario and res:
-            site_now = res["site"]
-            observed = site_now["observed"]
-            line = (f"<b>Scenario on.</b> Scoring with a growing-season temperature of "
-                    f"<b>{site_now['temp']:.1f} °C</b> (measured {observed['temp']:.1f}) and "
-                    f"annual rain of <b>{site_now['rain']:.0f} mm</b> (measured "
-                    f"{observed['rain']:.0f}). The tags beside each score show where the "
-                    "rotation ranks with today's climate.")
-            if sc_year != TODAY_YEAR and not site_now["scenario"]["projection_used"]:
-                line += (" No 2040 projection is available for this location, so the year "
-                         "slider has no effect here.")
-            emit(f'<p class="scn">{line}</p>')
-            st.button("Back to today's climate", key="sc-reset", on_click=reset_scenario)
-
-    if sum(weights.values()) == 0:
-        emit(f'<div class="problem" style="margin-top:1.5rem">{icon("alert", 16)}<span>Every '
-             "priority is at zero, so there is nothing to rank by. Raise at least one.</span></div>")
-    elif rec_error is not None:
-        emit(f'<div class="problem" style="margin-top:1.5rem">{icon("alert", 16)}'
-             f"<span>{esc(rec_error)}</span></div>")
-    else:
-        legend = "".join(f'<span><i style="--c:var(--{ink})"></i>{esc(name)}</span>'
-                         for ink, name in GROUPS.values())
+    # ================================================================= the soil
+    emit(edge("grain", "ground", 1))
+    with st.container(key="band-ground"):
+        c = fp["criteria"]
+        ph_note = f"scoring with your value, {ph:.1f}" if ph is not None else ""
         emit(f"""
-<div class="legend" aria-label="What the strips show">
-{legend}
-<span>{icon('legume', 15)}legume</span>
-<span>{icon('sod', 15)}perennial sod crop</span>
-<span>{icon('residue', 15)}high residue</span>
-<span><b class="strip-tag">{icon('plus', 11)}</b>added to what you grow now</span>
-</div>
-<p class="small" style="margin-top:.4rem">A strip's colour is its crop's functional group.
-The four soil-health checks count the colours and the three marks.</p>
-<div class="sch">
-<div class="sch-head" aria-hidden="true">
-<span>Rank</span><span>One cycle, a strip per year</span>
-<div class="sch-cols"><span>Overall score</span><span>Climate fit</span><span>Soil checks</span><span>Water saving</span><span>Fit in 2040</span></div>
-</div>
-</div>
-""")
-        with st.container(key="ranked"):
-            if baseline:
-                with st.container(key="rank-now"):
-                    emit(schedule_row(baseline, rank=None, baseline=None, slots=slots,
-                                      current=current, flip=flip))
-                    with st.expander(f"Why your rotation now scores {baseline['score']:.2f}"):
-                        emit(why_html(baseline))
-            else:
-                with st.container(key="rank-now"):
-                    emit('<div class="problem">Pick the crops you grow now, in the plan beside '
-                         "the map, to compare these options against your current rotation.</div>")
-            if not recs:
-                with st.container(key="rank-none"):
-                    emit(f'<div class="problem">{icon("alert", 16)}<span>No rotation fits this '
-                         "field yet. Try fewer current crops or move the pin.</span></div>")
-            for index, r in enumerate(recs, 1):
-                with st.container(key=f"rank-{index}"):
-                    emit(schedule_row(r, rank=index, baseline=baseline, slots=slots,
-                                      current=current, flip=flip,
-                                      moved=moved_html(r, index, base_res)))
-                    with st.expander(f"Why option {index} scores {r['score']:.2f}"):
-                        emit(why_html(r))
+    <section class="layer" aria-label="In the soil">
+    <h2 class="layer-h">In the soil</h2>
+    <p class="lead">The top 5 cm, read for a cell 250 m wide, so these values are local to the pin.</p>
+    <div class="ledgers">
+    <ul class="ledger">
+    {ledger_row('c16_clay_pct', c)}
+    {ledger_row('c16_sand_pct', c)}
+    </ul>
+    <ul class="ledger">
+    {ledger_row('c17_soil_organic_carbon_g_per_kg', c)}
+    {ledger_row('c18_soil_ph', c, note=ph_note)}
+    </ul>
+    </div>
+    </section>
+    """)
+        with st.container(key="corrections"):
+            emit('<div class="group-head"><h3 class="group-h">Know better than the satellite?</h3>'
+                 '<p class="small">Correct an auto-filled value and the ranking above follows.</p></div>')
+            st.checkbox("This field is irrigated", key="irrigated")
+            st.checkbox("I know my soil pH", key="use_ph")
+            if st.session_state.get("use_ph"):
+                st.number_input("Soil pH", 3.0, 11.0, 6.5, 0.1, key="ph_value")
+        emit('<div class="layer-end"></div>')
 
-        site = res["site"]
-        foot = ("Dry-year check uses this location's three driest years: "
-                + ", ".join(f"{y} ({r:.0f} mm)" for y, r, _ in site["driest_years"]) + ". "
-                + (f"Soil texture class: {site['texture']}. " if site["texture"] else
-                   "Soil texture missing, not checked. ")
-                + (f"Not offered here (poor climate fit): {', '.join(res['crops_not_offered'])}."
-                   if res["crops_not_offered"] else ""))
-        emit(f'<p class="small sch-foot">{esc(foot)}</p>')
-        if res.get("crops_excluded"):
-            emit('<p class="small sch-foot">Left out at your request: '
-                 f'{esc(", ".join(res["crops_excluded"]))}.</p>')
+    # ================================================================ the water
+    emit(WATER_TABLE)
+    with st.container(key="band-water"):
+        c = fp["criteria"]
+        gw_series = c.get("_groundwater_percentile_by_date") or {}
+        gw_chart = history_bars(
+            gw_series, latest=c.get("_groundwater_latest_date"), ceiling=100,
+            label="Groundwater wetness percentile, one reading a year")
+        if gw_chart:
+            gw_chart += ('<p class="hist-cap">One reading a year, taken in the same week. '
+                         "The pale bar is the latest.</p>")
+        emit(f"""
+    <section class="layer layer-end" aria-label="In the water below">
+    <h2 class="layer-h">In the water below</h2>
+    <p class="lead">Groundwater is weighed from orbit by the GRACE-FO satellites: 0 is the driest
+    on record for the week, 100 the wettest. Groundwater, slope and aridity are shown for context
+    and do not change the ranking.</p>
+    <div class="ledgers">
+    <ul class="ledger">
+    {ledger_row('c10_groundwater_percentile_latest', c, extra=gw_chart)}
+    </ul>
+    <ul class="ledger">
+    {ledger_row('c10_groundwater_percentile_10yr_mean', c)}
+    {ledger_row('c08_root_zone_wetness_0to1', c)}
+    </ul>
+    </div>
+    </section>
+    """)
 
-        replay = replay_html(res, baseline, recs)
-        if replay:
-            with st.container(key="replay"):
-                emit('<div class="group-head"><h3 class="group-h">Ten-year replay</h3>'
-                     f'<p class="small">{esc(REPLAY_NOTE)}</p></div>' + replay)
-        with st.expander("Why these kinds of crops help the soil"):
-            emit(benefits_html()
-                 + '<p class="small" style="margin-top:.75rem">Paraphrased from USDA NRCS '
-                 "Conservation Practice Standard 328, Conservation Crop Rotation, and FAO "
-                 "EcoCrop.</p>")
-    emit('<div class="layer-end"></div>')
 
-# ============================================== the surface: what grew here
-emit(edge("leaf", "grain", 0))
-with st.container(key="band-gold"):
-    c = fp["criteria"]
-    seq = c.get("c19_crop_sequence") or {}
-    history = (history_strips(seq) if seq else
-               '<span class="slot">no field crop registered at this spot</span>')
-    num, label, _unit, _digits, source = CRITERIA["c19_crop_sequence"]
-    emit(f"""
-<section class="layer layer-end" aria-label="On the surface">
-<h2 class="layer-h">On the surface</h2>
-<p class="lead">What satellites saw growing at the pin, and the lie of the land. Crop history
-is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns no crop.
-Greenness is read for a 250 m pixel, which can straddle two fields near an edge.</p>
-<div class="ledgers is-three">
-<div>
-<ul class="ledger">
-<li class="lg-row"><span class="lg-num">{esc(num)}</span>
-<div class="lg-main"><span class="lg-name">{esc(label)}</span></div>
-<div class="lg-meta"><span>{esc(source)}</span></div>
-<div class="lg-extra">{history}</div></li>
-</ul>
-</div>
-<div>
-<ul class="ledger">
-{ledger_row('c11_slope_pct', c)}
-{''.join(slot_row(*row) for row in UNWIRED)}
-</ul>
-</div>
-<div>
-<ul class="ledger">
-{ledger_row('c12_peak_ndvi_mean', c, extra=ndvi_bars(c.get('_peak_ndvi_by_year') or {}, set(c.get('c09_dry_years') or [])))}
-{ledger_row('c12_greenness_trend_per_decade', c, sub=True)}
-{ledger_row('c13_greenness_drop_dry_years', c)}
-</ul>
-</div>
-</div>
-</section>
-""")
+with tab_model:
+    model_tab()
 
-# ================================================================= the soil
-emit(edge("grain", "ground", 1))
-with st.container(key="band-ground"):
-    c = fp["criteria"]
-    ph_note = f"scoring with your value, {ph:.1f}" if ph is not None else ""
-    emit(f"""
-<section class="layer" aria-label="In the soil">
-<h2 class="layer-h">In the soil</h2>
-<p class="lead">The top 5 cm, read for a cell 250 m wide, so these values are local to the pin.</p>
-<div class="ledgers">
-<ul class="ledger">
-{ledger_row('c16_clay_pct', c)}
-{ledger_row('c16_sand_pct', c)}
-</ul>
-<ul class="ledger">
-{ledger_row('c17_soil_organic_carbon_g_per_kg', c)}
-{ledger_row('c18_soil_ph', c, note=ph_note)}
-</ul>
-</div>
-</section>
-""")
-    with st.container(key="corrections"):
-        emit('<div class="group-head"><h3 class="group-h">Know better than the satellite?</h3>'
-             '<p class="small">Correct an auto-filled value and the ranking above follows.</p></div>')
-        st.checkbox("This field is irrigated", key="irrigated")
-        st.checkbox("I know my soil pH", key="use_ph")
-        if st.session_state.get("use_ph"):
-            st.number_input("Soil pH", 3.0, 11.0, 6.5, 0.1, key="ph_value")
-    emit('<div class="layer-end"></div>')
-
-# ================================================================ the water
-emit(WATER_TABLE)
-with st.container(key="band-water"):
-    c = fp["criteria"]
-    gw_series = c.get("_groundwater_percentile_by_date") or {}
-    gw_chart = history_bars(
-        gw_series, latest=c.get("_groundwater_latest_date"), ceiling=100,
-        label="Groundwater wetness percentile, one reading a year")
-    if gw_chart:
-        gw_chart += ('<p class="hist-cap">One reading a year, taken in the same week. '
-                     "The pale bar is the latest.</p>")
-    emit(f"""
-<section class="layer layer-end" aria-label="In the water below">
-<h2 class="layer-h">In the water below</h2>
-<p class="lead">Groundwater is weighed from orbit by the GRACE-FO satellites: 0 is the driest
-on record for the week, 100 the wettest. Groundwater, slope and aridity are shown for context
-and do not change the ranking.</p>
-<div class="ledgers">
-<ul class="ledger">
-{ledger_row('c10_groundwater_percentile_latest', c, extra=gw_chart)}
-</ul>
-<ul class="ledger">
-{ledger_row('c10_groundwater_percentile_10yr_mean', c)}
-{ledger_row('c08_root_zone_wetness_0to1', c)}
-</ul>
-</div>
-</section>
-""")
-
-# ============================================================ the fine print
-fine_print(edge("water", "paper", 2))
+with tab_fine:
+    fine_print("")

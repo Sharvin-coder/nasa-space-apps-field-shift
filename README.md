@@ -75,6 +75,20 @@ it changes, and each rotation is drawn as a row of year strips coloured by
 functional group. Map tiles are Sentinel-2 cloudless (EOX) with Esri reference
 labels; every value on the page still comes from the live NASA and soil feeds.
 
+The page has five tabs, so nothing is more than a short scroll away: **Your
+field** (map, current rotation, top shift, report), **Rotations** (priorities,
+constraints, climate time machine, ranking, ten-year replay), **Measurements**
+(air, surface, soil, water, glossary), **The model** and **Fine print**.
+
+### The model, today and proposed
+
+Rankings come from explicit rules, not a trained model. "The model" tab and
+[MODEL.md](MODEL.md) say exactly which methods run today, and set out the
+design we would build next: a neurosymbolic world model in which a learned
+model of how a field changes over time is tied to the published agronomic
+rules, which act as its mask, starting point and checker. **That design is
+not trained or running, and no result is claimed for it.**
+
 ### Explore, not just rank
 
 - **Climate time machine.** A year slider blends today's climate (the
