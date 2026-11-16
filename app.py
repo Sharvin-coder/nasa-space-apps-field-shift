@@ -35,6 +35,7 @@ st.set_page_config(page_title="Field Shift", page_icon="🌾", layout="wide")
 REPO_URL = "https://github.com/Sharvin-coder/nasa-space-apps-field-shift"
 APP_URL = "https://sharvin-coder-nasa-space-apps-field-shift-app-265jl1.streamlit.app/"
 TODAY_YEAR, FUTURE_YEAR = 2024, 2040   # ends of the climate time machine
+DATA_VERSION = 2                       # raise when fingerprint() gains or changes criteria
 
 # The two worked examples from the submission write-up.
 EXAMPLES = {"Central Iowa": (42.10, -93.55), "Southwest Kansas": (38.05, -100.95)}
@@ -1473,8 +1474,10 @@ def edge(frm: str, to: str, shape: int = 0) -> str:
 
 # ---------------------------------------------------------------------- data
 @st.cache_data(show_spinner=False, ttl=24 * 3600)
-def site_data(lat: float, lon: float) -> dict:
-    """One NASA POWER + SoilGrids fetch per location. Failures are not cached."""
+def site_data(lat: float, lon: float, version: int = 0) -> dict:
+    """One fetch of every data source per location. Failures are not cached.
+    version is part of the cache key: raise DATA_VERSION when the criteria change,
+    so a running app does not keep serving results saved by older code."""
     fp = fingerprint(lat, lon)
     if "annual_rain_mm" not in fp["criteria"]:
         raise RuntimeError("; ".join(fp["notes"]) or "climate data unavailable")
@@ -1817,7 +1820,7 @@ takes about ten seconds while six data services answer.</p>
     fp = None
     fetch_error = None
     try:
-        fp = site_data(LAT, LON)
+        fp = site_data(LAT, LON, DATA_VERSION)
         st.session_state.read_for = (LAT, LON)
     except Exception as exc:  # keep the map alive so the pin can be moved
         fetch_error = exc
