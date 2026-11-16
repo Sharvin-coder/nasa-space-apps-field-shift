@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Farm Sight: NASA Space Apps Challenge 2026 demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Besley:wght@500;700;900&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  :root {
+    --paper: #F0EDE2; --ink: #1F150D; --ink2: #5B4A39; --sky: #125A64; --sky-deep: #0C434B;
+    --sky-tint: #C6E6E1; --leaf: #256B36; --gold: #F4C24C; --barn: #D2452F; --water: #1B4A7C;
+    --ground: #39230F; --rule: rgba(31, 21, 13, .2);
+    --display: 'Besley', Georgia, serif; --text: 'Libre Franklin', 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .slide {
+    width: 1280px; height: 720px; position: relative; overflow: hidden; page-break-after: always;
+    font-family: var(--text); color: var(--ink); background: var(--paper); padding: 56px 64px;
+  }
+  .slide:last-child { page-break-after: auto; }
+  .dark { background: var(--sky); color: var(--paper); }
+  .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--barn); }
+  .dark .eyebrow { color: var(--gold); }
+  h1 { font: 900 64px/1 var(--display); letter-spacing: -.022em; }
+  h2 { font: 900 40px/1.08 var(--display); letter-spacing: -.018em; margin-top: 10px; }
+  h2 em, h1 em { font-style: normal; color: var(--barn); }
+  .dark h1 em, .dark h2 em { color: var(--gold); }
+  p { font-size: 19px; line-height: 1.45; }
+  .lede { font-size: 22px; line-height: 1.4; max-width: 620px; }
+  .dark .lede { color: var(--sky-tint); }
+  .foot { position: absolute; left: 64px; right: 64px; bottom: 28px; display: flex; justify-content: space-between;
+          font-size: 12.5px; color: var(--ink2); letter-spacing: .02em; }
+  .dark .foot { color: var(--sky-tint); }
+  .foot b { font-weight: 700; }
+  .shot { display: block; width: 100%; border: 1.5px solid rgba(31, 21, 13, .35);
+          box-shadow: 0 18px 40px rgba(0, 0, 0, .28); }
+  .cols { display: grid; gap: 44px; margin-top: 30px; align-items: start; }
+  .mark { display: inline-flex; align-items: center; gap: 12px; font: 900 26px/1 var(--display); }
+  .mark i { display: inline-block; width: 34px; height: 20px;
+            background: repeating-linear-gradient(var(--gold) 0 5px, transparent 5px 7px, #E58238 7px 12px, transparent 12px 14px, #55A04E 14px 20px);
+            border-radius: 2px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 26px; border-top: 2px solid var(--ink); }
+  .stats div { padding: 14px 16px 0 0; }
+  .stats b { display: block; font: 900 46px/1 var(--display); }
+  .stats span { display: block; margin-top: 6px; font-size: 14.5px; line-height: 1.3; color: var(--ink2); }
+  ul.pts { list-style: none; display: grid; gap: 16px; }
+  ul.pts li { font-size: 19px; line-height: 1.4; padding-left: 22px; position: relative; }
+  ul.pts li::before { content: ""; position: absolute; left: 0; top: .5em; width: 10px; height: 10px; background: var(--barn); }
+  .dark ul.pts li::before { background: var(--gold); }
+  ul.pts b { font-weight: 700; }
+  .steps { display: grid; gap: 11px; counter-reset: s; }
+  .steps div { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start; }
+  .steps div::before { counter-increment: s; content: counter(s); font: 900 34px/1 var(--display); color: var(--barn); }
+  .steps b { display: block; font-size: 20px; font-weight: 700; }
+  .steps span { display: block; font-size: 15px; line-height: 1.35; color: var(--ink2); margin-top: 2px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; margin-top: 26px; }
+  .cap { margin-top: 14px; }
+  .cap b { font: 900 22px/1.15 var(--display); display: block; }
+  .cap span { display: block; margin-top: 6px; font-size: 16px; line-height: 1.4; color: var(--ink2); }
+  .score { font: 900 22px/1 var(--display); color: var(--barn); white-space: nowrap; }
+  .grid6 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 40px; margin-top: 46px; }
+  .grid6 div { border-top: 2px solid var(--paper); padding: 20px 0 44px; }
+  .grid6 b { display: block; font: 700 26px/1.2 var(--display); color: var(--gold); }
+  .grid6 span { display: block; margin-top: 10px; font-size: 19px; line-height: 1.42; color: var(--paper); }
+  .sources { margin-top: 18px; font-size: 14.5px; line-height: 1.5; color: var(--ink2); }
+  .sources b { color: var(--ink); }
+  .card { background: #fff; border: 1.5px solid var(--rule); padding: 10px; }
+  .card img { display: block; width: 100%; }
+  .cta { margin-top: 26px; display: grid; gap: 14px; border-top: 2px solid var(--ink); padding-top: 16px; }
+  .cta b { display: block; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--barn); }
+  .cta code { display: block; margin-top: 3px; font: 600 12.5px/1.3 ui-monospace, Consolas, monospace; white-space: nowrap; }
+  .measures { position: absolute; left: 64px; right: 64px; bottom: 70px; }
+  .chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-top: 12px; }
+  .chips div { border-top: 3px solid var(--sky); padding-top: 10px; }
+  .chips b { display: block; font: 700 16.5px/1.2 var(--display); }
+  .chips span { display: block; margin-top: 4px; font-size: 12.5px; color: var(--ink2); }
+</style>
+</head>
+<body>
+
+<!-- 1 -->
+<section class="slide dark">
+  <div class="mark"><i></i>Farm Sight</div>
+  <div class="cols" style="grid-template-columns: 1.12fr 1fr; margin-top: 70px; align-items: center;">
+    <div>
+      <h1>Drop a pin.<br><em>NASA data fills in the rest.</em></h1>
+      <p class="lede" style="margin-top: 26px;">A crop-rotation advisor that reads any field from orbit,
+      ranks the rotations that fit it, and shows the reason for every score.</p>
+    </div>
+    <img class="shot" src="kansas.png" alt="Farm Sight showing a field in southwest Kansas: the map, the current rotation scoring 0.28 and the suggested shift scoring 0.66">
+  </div>
+  <div class="foot"><span><b>NASA Space Apps Challenge 2026</b> · Field Shift: Adapting Farms with NASA Data</span>
+  <span>Live: sharvin-coder-nasa-space-apps-field-shift-app-265jl1.streamlit.app</span></div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="eyebrow">The problem</div>
+  <h2>The data to adapt a farm already exists. <em>Farmers can't reach it.</em></h2>
+  <div class="cols" style="grid-template-columns: 1fr 1fr; margin-top: 44px;">
+    <ul class="pts">
+      <li><b>NASA measures every field on Earth:</b> rain, heat, groundwater, greenness, terrain.</li>
+      <li><b>It is scattered</b> across a dozen portals, formats and grid sizes, from 30 m to 50 km.</li>
+      <li><b>Most rotation tools ask the farmer to type it in.</b> A farmer who has to look up ten
+      years of rainfall will not use the tool.</li>
+    </ul>
+    <div style="border-left: 6px solid var(--barn); padding-left: 26px;">
+      <p style="font: 700 30px/1.25 var(--display);">Choosing what to plant next is a climate decision
+      made without the climate record.</p>
+      <p style="margin-top: 18px; color: var(--ink2);">Farm Sight closes that gap with one click, and
+      keeps the farmer in charge of the answer.</p>
+    </div>
+  </div>
+  <div class="measures">
+    <p class="eyebrow" style="color: var(--ink2);">Already measured for every field, free and open</p>
+    <div class="chips">
+      <div><b>Rain, heat, sunlight</b><span>NASA POWER</span></div>
+      <div><b>Groundwater</b><span>NASA GRACE-FO</span></div>
+      <div><b>Greenness</b><span>NASA MODIS</span></div>
+      <div><b>Terrain</b><span>NASA SRTM</span></div>
+      <div><b>Climate in 2040</b><span>NASA NEX-GDDP-CMIP6</span></div>
+      <div><b>Soil</b><span>ISRIC SoilGrids</span></div>
+      <div><b>Crops grown</b><span>USDA Cropland Data Layer</span></div>
+    </div>
+  </div>
+  <div class="foot"><span><b>Farm Sight</b></span><span>2</span></div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="eyebrow">How it works</div>
+  <h2>One click in. <em>A ranked, explained rotation out.</em></h2>
+  <div class="cols" style="grid-template-columns: .82fr 1fr; margin-top: 26px;">
+    <div>
+      <div class="steps">
+        <div><p><b>Pin the field</b><span>Click the map. Nothing else to enter.</span></p></div>
+        <div><p><b>NASA fills in the field</b><span>Ten years of weather, groundwater, greenness,
+        slope, soil, the 2040 projection, and the crops satellites saw growing there.</span></p></div>
+        <div><p><b>Say what matters</b><span>Climate fit, soil health, water saving, and any crop
+        you cannot grow.</span></p></div>
+        <div><p><b>Get the shift</b><span>Your rotation scored against better ones that keep what
+        you already grow.</span></p></div>
+      </div>
+    </div>
+    <img class="shot" src="iowa.png" alt="Farm Sight showing a central Iowa field with corn and soybean pre-filled, scoring 0.66, and a suggested shift scoring 0.84">
+  </div>
+  <div class="stats" style="position: absolute; left: 64px; right: 64px; bottom: 58px; margin: 0;">
+    <div><b>24</b><span>measurements filled in for every pin</span></div>
+    <div><b>7</b><span>datasets, five of them NASA missions and models</span></div>
+    <div><b>0</b><span>typed by the farmer</span></div>
+    <div><b>10 yrs</b><span>of daily weather behind each score</span></div>
+  </div>
+  <div class="foot"><span><b>NASA data:</b> POWER · GRACE-FO · MODIS · SRTM · NEX-GDDP-CMIP6 &nbsp; <b>Also:</b> ISRIC SoilGrids · USDA Cropland Data Layer</span><span>3</span></div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="eyebrow">Live results, not mock-ups</div>
+  <h2>A different field gets <em>a different answer.</em></h2>
+  <div class="pair">
+    <div>
+      <img class="shot" src="iowa.png" alt="Central Iowa result">
+      <div class="cap"><b>Central Iowa <span class="score">0.66 → 0.84</span></b>
+      <span>Corn and soybean detected from orbit. Adding alfalfa and dry bean meets all four USDA
+      soil-health checks, up from two.</span></div>
+    </div>
+    <div>
+      <img class="shot" src="kansas.png" alt="Southwest Kansas result">
+      <div class="cap"><b>Southwest Kansas <span class="score">0.28 → 0.66</span></b>
+      <span>Far drier, with groundwater at the 2nd percentile for the week. Corn and wheat alone
+      score poorly; drought-tolerant sorghum and alfalfa lift the rotation.</span></div>
+    </div>
+  </div>
+  <div class="foot"><span><b>Farm Sight</b> · screenshots from the live app, 16 November 2026</span><span>4</span></div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="eyebrow">Climate adaptation</div>
+  <h2>Stress-test the plan <em>before the climate does.</em></h2>
+  <div class="cols" style="grid-template-columns: 1.18fr .82fr; margin-top: 24px;">
+    <img class="shot" src="scenario.png" alt="The climate time machine set to plus 3 degrees and minus 30 percent rain: the current rotation falls to 0.50 and a rotation with sorghum, not offered today, ranks first">
+    <div>
+      <ul class="pts">
+        <li><b>Climate time machine.</b> Slide toward NASA's 2040 projection, or set your own
+        warmer and drier what-if. The ranking re-forms live.</li>
+        <li><b>+3 °C and 30% less rain in Iowa:</b> corn and soybean fall from 0.66 to 0.50, and
+        sorghum, not offered there today, enters the top rotation.</li>
+        <li><b>Ten-year replay.</b> Every rotation is re-scored with each past year's real weather,
+        so a farmer can check it against the droughts they remember.</li>
+      </ul>
+      <img class="shot" src="replay.png" alt="Ten-year replay bars with the three driest years highlighted" style="margin-top: 20px;">
+    </div>
+  </div>
+  <div class="foot"><span><b>Farm Sight</b> · a what-if on crop fit, never a yield forecast</span><span>5</span></div>
+</section>
+
+<!-- 6 -->
+<section class="slide dark">
+  <div class="eyebrow">Why a farmer can trust it</div>
+  <h2>No black box. <em>Every score shows its working.</em></h2>
+  <div class="grid6">
+    <div><b>Explained</b><span>Each crop's fit, its limiting factor and the soil checks it meets
+    are one click away.</span></div>
+    <div><b>Grounded in published science</b><span>FAO EcoCrop crop ranges and USDA NRCS
+    Conservation Standard 328, not invented weights.</span></div>
+    <div><b>The farmer decides</b><span>Set priorities, rule out crops, correct irrigation, soil pH
+    or what the satellite detected.</span></div>
+    <div><b>Ready for the agronomist</b><span>A printable one-page report with questions generated
+    from that field's own results.</span></div>
+    <div><b>Plain language</b><span>A glossary for every term, and why legumes, sod crops and
+    residue help the soil.</span></div>
+    <div><b>Honest about limits</b><span>Missing data stays missing. The app says what it cannot
+    tell you, and where local judgment is needed.</span></div>
+  </div>
+  <div class="foot"><span><b>Farm Sight</b> · open source, no API keys needed to run</span><span>6</span></div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="eyebrow">What comes next</div>
+  <h2>From a rule engine to <em>a world model of the field.</em></h2>
+  <div class="cols" style="grid-template-columns: 1.3fr .7fr; margin-top: 22px;">
+    <div class="card"><img src="../architecture.svg" alt="Schematic of the Farm Sight world model: observations are encoded into slow and fast latent states, rolled forward given the crop planted, anchored by a rule program, and searched by a planner"></div>
+    <div>
+      <ul class="pts" style="gap: 13px;">
+        <li><b>The crop is the action.</b> Simulate a whole rotation forward, under a climate that
+        has not happened.</li>
+        <li><b>Rules it may correct, never break.</b> What it learns is a revised crop table an
+        agronomist can read.</li>
+        <li><b>Free labels.</b> USDA crop maps and MODIS greenness, no yield records.</li>
+      </ul>
+      <div class="cta">
+        <div><b>Try it</b> <code>sharvin-coder-nasa-space-apps-field-shift-app-265jl1.streamlit.app</code></div>
+        <div><b>Code</b> <code>github.com/Sharvin-coder/nasa-space-apps-field-shift</code></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span><b>Farm Sight</b> · NASA Space Apps Challenge 2026</span><span>7</span></div>
+</section>
+
+</body>
+</html>
