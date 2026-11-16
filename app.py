@@ -86,8 +86,8 @@ CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Besley:wght@400..900&family=Libre+Franklin:ital,wght@0,300..800;1,400..500&display=swap');
 
 :root {
-  --paper: #F7F0DD;
-  --paper-2: #EBE1C6;
+  --paper: #F0EDE2;
+  --paper-2: #E2DED0;
   --ink: #1F150D;
   --ink-2: #5B4A39;
 
@@ -97,6 +97,8 @@ CSS = """
   --ground: #39230F;
   --ground-deep: #25160A;
   --ground-tint: #E2CDAA;
+  --leaf: #256B36;
+  --leaf-tint: #CFE6C4;
   --water: #1B4A7C;
   --water-deep: #123863;
   --water-tint: #CADFF4;
@@ -123,6 +125,7 @@ CSS = """
 
   --grain-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .5 -.16'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --grain-soft: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .12 0 0 0 .34 -.13'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --isobars: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 700' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23F0EDE2' stroke-opacity='.11' stroke-width='1.5'%3E%3Cpath vector-effect='non-scaling-stroke' d='M-20 96C260 20 520 190 820 96S1260 6 1460 112'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M-20 214C300 150 560 300 860 214S1240 140 1460 236'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M-20 338C240 280 600 420 900 330S1280 270 1460 352'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M-20 462C320 400 620 540 920 452S1260 400 1460 470'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M-20 586C280 530 640 660 940 574S1300 520 1460 592'/%3E%3C/g%3E%3C/svg%3E");
   --strip-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 8C22 0 46 11 100 3V94C74 100 44 89 0 97Z'/%3E%3C/svg%3E");
 }
 
@@ -170,6 +173,8 @@ header[data-testid="stHeader"],
 
 /* ------------------------------------------------------------------ bands */
 .st-key-band-sky,
+.st-key-band-leaf,
+.st-key-band-gold,
 .st-key-band-ground,
 .st-key-band-water,
 .st-key-band-paper {
@@ -184,15 +189,31 @@ header[data-testid="stHeader"],
 .st-key-band-sky {
   padding-bottom: clamp(1.75rem, 3.4vw, 3rem);
   --bg: var(--sky); --fg: var(--paper); --fg2: var(--sky-tint);
-  --rule: rgba(247, 240, 221, .28); --field: rgba(4, 34, 39, .32);
+  --rule: rgba(240, 237, 226, .28); --field: rgba(4, 34, 39, .32);
 }
+.st-key-band-sky {
+  background-image: var(--grain-img), var(--isobars);
+  background-repeat: repeat, no-repeat;
+  background-size: auto, 100% 46rem;
+  background-position: 0 0, 0 3.5rem;
+}
+.st-key-band-leaf {
+  --bg: var(--leaf); --fg: var(--paper); --fg2: var(--leaf-tint);
+  --rule: rgba(240, 237, 226, .28); --field: rgba(4, 26, 9, .3);
+}
+.st-key-band-gold {
+  --bg: var(--grain); --fg: var(--ink); --fg2: #54432F;
+  --rule: rgba(31, 21, 13, .3); --field: rgba(31, 21, 13, .06);
+  --good: #2B6B2A; --note: #125A64; --watch: var(--ink); --concern: #A23A12;
+}
+.st-key-band-gold ::selection { background: var(--ink); color: var(--paper); }
 .st-key-band-ground {
   --bg: var(--ground); --fg: var(--paper); --fg2: var(--ground-tint);
-  --rule: rgba(247, 240, 221, .24); --field: rgba(0, 0, 0, .28);
+  --rule: rgba(240, 237, 226, .24); --field: rgba(0, 0, 0, .28);
 }
 .st-key-band-water {
   --bg: var(--water); --fg: var(--paper); --fg2: var(--water-tint);
-  --rule: rgba(247, 240, 221, .28); --field: rgba(6, 22, 48, .34);
+  --rule: rgba(240, 237, 226, .28); --field: rgba(6, 22, 48, .34);
 }
 .st-key-band-paper,
 .st-key-plate,
@@ -204,13 +225,15 @@ header[data-testid="stHeader"],
 /* --------------------------------------------------------------------- type */
 .stApp h1.hero-h {
   margin: 0; padding: 0;
-  font: 900 clamp(2.5rem, .9rem + 3.6vw, 4rem)/.97 var(--display);
-  letter-spacing: -.022em;
+  font: 900 clamp(2.5rem, .2rem + 5.1vw, 5rem)/.98 var(--display);
+  letter-spacing: -.024em;
   color: var(--paper);
   text-wrap: balance;
 }
-.stApp h1.hero-h span { display: block; }
-.stApp h1.hero-h span + span { color: var(--gold); }
+/* Streamlit wraps a heading's contents in one more span; step through it */
+.stApp h1.hero-h > span:not(.hl-1):not(.hl-2) { display: contents; }
+.stApp h1.hero-h .hl-1, .stApp h1.hero-h .hl-2 { display: block; }
+.stApp h1.hero-h .hl-2 { color: var(--gold); }
 .stApp h2.layer-h {
   margin: 0; padding: 0;
   font: 800 clamp(1.75rem, 1.25rem + 1.35vw, 2.375rem)/1.06 var(--display);
@@ -261,7 +284,7 @@ header[data-testid="stHeader"],
 .stApp .mast-nav a {
   font-size: .875rem; font-weight: 600; color: var(--paper);
   text-decoration: underline;
-  text-decoration-color: rgba(247, 240, 221, .45);
+  text-decoration-color: rgba(240, 237, 226, .45);
   text-decoration-thickness: 1.5px;
   text-underline-offset: .24em;
   transition: text-decoration-color .18s var(--ease);
@@ -269,20 +292,32 @@ header[data-testid="stHeader"],
 .stApp .mast-nav a:hover { text-decoration-color: var(--gold); }
 
 /* -------------------------------------------------------------------- hero */
+/* line one sits beside the deck; line two runs the full width under both */
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: 1.25rem 3.5rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: clamp(2rem, 4vw, 4rem);
   align-items: end;
-  padding: clamp(1.5rem, 3vw, 2.5rem) 0 clamp(1.25rem, 2.4vw, 2rem);
+  padding: clamp(1.5rem, 2.6vw, 2.25rem) 0 clamp(1.125rem, 1.9vw, 1.625rem);
 }
+.hero > div:has(> h1) { display: contents; }
+.stApp h1.hero-h {
+  grid-column: 1 / -1; grid-row: 1 / 3;
+  display: grid; grid-template-columns: subgrid; grid-template-rows: subgrid;
+  align-items: end;
+}
+.stApp h1.hero-h .hl-1 { grid-area: 1 / 1; white-space: nowrap; }
+/* inline-size containment keeps the long second line from sizing the first column */
+.stApp h1.hero-h .hl-2 { grid-area: 2 / 1 / 3 / -1; contain: inline-size; }
 .stApp p.hero-deck {
+  grid-area: 1 / 2;
+  justify-self: end; align-self: end;
   font-size: 1.0625rem; line-height: 1.5; color: var(--sky-tint);
-  max-width: 46ch; padding-bottom: .3rem;
+  max-width: 44ch; padding-bottom: .75rem;
   animation: rise .9s var(--ease) .24s both;
 }
-.stApp h1.hero-h span { animation: rise .9s var(--ease) both; }
-.stApp h1.hero-h span + span { animation-delay: .12s; }
+.stApp h1.hero-h .hl-1, .stApp h1.hero-h .hl-2 { animation: rise .9s var(--ease) both; }
+.stApp h1.hero-h .hl-2 { animation-delay: .12s; }
 
 .st-key-hero-cols { gap: 0 !important; }
 .st-key-hero-cols > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {
@@ -316,6 +351,16 @@ header[data-testid="stHeader"],
 }
 .st-key-plate iframe { display: block; border: 0; border-radius: 2px; background: var(--sky-deep); }
 .st-key-plate-controls { padding: 0 .375rem; gap: .625rem !important; }
+.plat {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem;
+  padding: .375rem .375rem .125rem;
+}
+.stApp p.plat-title { font: 800 1.1875rem/1.15 var(--display); letter-spacing: -.008em; color: var(--ink); }
+.stApp p.plat-sub { margin-top: .2rem; font-size: .8125rem; line-height: 1.35; color: var(--ink-2); }
+.north { flex: none; color: var(--ink); }
+.north path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.north path.north-head { fill: currentColor; }
+.north text { font: 800 11px var(--display); fill: currentColor; }
 .stApp p.plate-cap { font-size: .875rem; line-height: 1.4; color: var(--ink-2); }
 .stApp p.plate-cap b { color: var(--ink); font-weight: 650; }
 
@@ -378,38 +423,42 @@ header[data-testid="stHeader"],
 /* ------------------------------------------------------------------ strips */
 .stApp ol.strips {
   --n: 4;
-  list-style: none; margin: 0; padding: 3px;
+  list-style: none; margin: 0; padding: 0;
   display: grid;
   grid-template-columns: repeat(var(--n), minmax(0, 1fr));
-  gap: 3px;
-  background: var(--strip-back, var(--ground));
   -webkit-mask: var(--strip-mask) center / 100% 100% no-repeat;
   mask: var(--strip-mask) center / 100% 100% no-repeat;
 }
-.st-key-band-ground ol.strips { --strip-back: var(--ground-deep); }
+/* each year carries its own dark backing, so a wrapped row leaves no empty block */
 .stApp ol.strips > li {
   margin: 0;
-  padding: .55rem .5rem .6rem .8rem;
-  min-height: 3.875rem;
-  display: flex; flex-direction: column; justify-content: space-between; gap: .2rem;
+  padding: 3px 1.5px;
+  display: flex;
+  background: var(--ground-deep);
   container-type: inline-size;
+}
+.strip-cell {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: .2rem;
+  min-height: 4.375rem;
+  padding: .5rem .75rem .5rem .85rem;
   color: var(--ink);
   background: var(--c, var(--fallow));
   clip-path: polygon(.5rem 0, 100% 0, calc(100% - .5rem) 100%, 0 100%);
   line-height: 1.12;
 }
-.stApp ol.strips.p0 > li { animation: plant0 .85s var(--ease) both; animation-delay: calc(var(--i) * 85ms + var(--d, 0ms)); }
-.stApp ol.strips.p1 > li { animation: plant1 .85s var(--ease) both; animation-delay: calc(var(--i) * 85ms + var(--d, 0ms)); }
+.stApp ol.strips.p0 .strip-cell { animation: plant0 .85s var(--ease) both; animation-delay: calc(var(--i) * 85ms + var(--d, 0ms)); }
+.stApp ol.strips.p1 .strip-cell { animation: plant1 .85s var(--ease) both; animation-delay: calc(var(--i) * 85ms + var(--d, 0ms)); }
 .stApp ol.strips > li.g-corn { --c: var(--corn); }
 .stApp ol.strips > li.g-grain { --c: var(--grain); }
 .stApp ol.strips > li.g-squash { --c: var(--squash); }
 .stApp ol.strips > li.g-hay { --c: var(--hay); }
-.stApp ol.strips > li.strip-empty {
-  background: repeating-linear-gradient(-58deg, rgba(247, 240, 221, .2) 0 2px, transparent 2px 9px);
+.stApp ol.strips > li.strip-empty .strip-cell {
+  background: repeating-linear-gradient(-58deg, rgba(240, 237, 226, .2) 0 2px, transparent 2px 9px);
 }
-.strip-top { display: flex; align-items: center; justify-content: space-between; gap: .25rem; min-height: 1rem; }
+.strip-top { display: flex; align-items: center; justify-content: space-between; gap: .25rem; height: 1.25rem; }
 .strip-yr { font-size: .75rem; font-weight: 550; white-space: nowrap; }
-@container (max-width: 4.75rem) { .strip-yr-word { display: none; } }
+@container (max-width: 4rem) { .strip-yr-word { display: none; } }
 .strip-tag {
   display: inline-flex; align-items: center; gap: .2rem;
   font-size: .75rem; font-weight: 700; line-height: 1;
@@ -421,8 +470,9 @@ header[data-testid="stHeader"],
   .strip-tag { padding: .2rem; }
   .strip-tag-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 }
-.strip-crop { font-weight: 750; font-size: clamp(.75rem, 15cqi, .9375rem); overflow-wrap: break-word; }
-.strip-marks { display: inline-flex; gap: .2rem; margin-left: .3rem; vertical-align: -.1em; }
+.strip-crop { font-weight: 750; font-size: clamp(.75rem, 14cqi, .9375rem); overflow-wrap: break-word; }
+/* the marks keep a line of their own, so every crop name starts on the same line */
+.strip-marks { display: flex; gap: .25rem; margin-top: auto; min-height: .875rem; }
 
 .legend {
   display: flex; flex-wrap: wrap; gap: .4rem 1.25rem;
@@ -430,7 +480,10 @@ header[data-testid="stHeader"],
   font-size: .8125rem; line-height: 1.4; color: var(--fg2);
 }
 .legend span { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
-.legend i { width: .875rem; height: .875rem; border-radius: 2px; background: var(--c); flex: none; }
+.legend i {
+  width: .875rem; height: .875rem; border-radius: 2px; background: var(--c); flex: none;
+  box-shadow: 0 0 0 1.5px var(--ground-deep);
+}
 .legend .ic { color: var(--fg); }
 
 /* ------------------------------------------------------------------ layers */
@@ -438,7 +491,7 @@ header[data-testid="stHeader"],
 .layer-end { padding-bottom: clamp(2.25rem, 4.4vw, 4rem); }
 .intro {
   display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: .75rem 3.5rem; align-items: end;
+  gap: .75rem 3.5rem; align-items: start;
   padding: clamp(2.5rem, 5vw, 4.25rem) 0 0;
 }
 .stApp p.intro-big {
@@ -526,7 +579,7 @@ header[data-testid="stHeader"],
 .hist-bars { align-items: end; height: 3.5rem; border-bottom: 1.5px solid var(--rule); }
 .hist-bars i {
   display: block; height: var(--h); min-height: 2px;
-  background: rgba(247, 240, 221, .5);
+  background: rgba(240, 237, 226, .5);
   border-radius: 1px 1px 0 0;
 }
 .hist-bars i.is-mark { background: var(--watch); }
@@ -538,27 +591,39 @@ header[data-testid="stHeader"],
 }
 .stApp p.hist-cap { margin-top: .4rem; font-size: .8125rem; line-height: 1.4; color: var(--fg2); max-width: 26rem; }
 .stApp ol.strips.strips-hist { max-width: 38rem; grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr)); }
-.stApp ol.strips.strips-hist > li { min-height: 3.25rem; }
+.stApp ol.strips.strips-hist .strip-cell { min-height: 3.25rem; }
 
 /* ------------------------------------------------------- horizon and edges */
 .horizon { line-height: 0; background: var(--sky) var(--grain-img); }
 .horizon svg { display: block; width: 100%; height: clamp(7.5rem, 14vw, 13rem); }
-.hz-top { fill: none; stroke: rgba(247, 240, 221, .6); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.hz-top { fill: none; stroke: rgba(240, 237, 226, .6); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .hz-band { animation: sweep 1.15s var(--ease) both; animation-delay: calc(var(--i) * 110ms + .35s); }
 .hz-band path { transition: fill .7s var(--ease); }
 .hz-row { fill: none; stroke: rgba(31, 21, 13, .3); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.hz-ground { fill: var(--ground); }
+.hz-ground { fill: var(--leaf); }
+/* below the fold the planting pass is tied to the scroll, so it plays as the hills arrive */
+@supports (animation-timeline: view()) {
+  .horizon { view-timeline: --horizon block; }
+  .hz-band {
+    animation: sweep linear both;
+    animation-timeline: --horizon;
+    animation-delay: 0s;
+    animation-range: entry 0% cover 30%;
+  }
+  .hz-band:nth-child(2) { animation-range: entry 20% cover 35%; }
+  .hz-band:nth-child(3) { animation-range: entry 40% cover 40%; }
+  .hz-band:nth-child(4) { animation-range: entry 60% cover 45%; }
+}
 .divide { line-height: 0; }
 .divide svg { display: block; width: 100%; height: clamp(2rem, 4vw, 3.5rem); }
 .divide-water { background: var(--ground) var(--grain-img); }
 .divide-water .dv-fill { fill: var(--water); }
 .divide-water .dv-line { fill: none; stroke: rgba(202, 223, 244, .38); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.divide-rock { background: var(--water) var(--grain-img); }
-.divide-rock .dv-fill { fill: var(--paper); }
-.divide-rock.from-sky { background: var(--sky) var(--grain-img); }
-.contour { line-height: 0; margin-top: clamp(2.25rem, 4.4vw, 4rem); }
-.contour svg { display: block; width: 100%; height: 1.25rem; }
-.contour path { fill: none; stroke: var(--rule); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+/* where one ink meets the next: a contour edge with a sliver of overprint */
+.edge { line-height: 0; background: var(--from) var(--grain-img); }
+.edge svg { display: block; width: 100%; height: clamp(2rem, 3.8vw, 3.5rem); }
+.edge-to { fill: var(--to); }
+.edge-over { fill: var(--to); mix-blend-mode: multiply; opacity: .5; }
 
 /* ---------------------------------------------------------------- rotations */
 .st-key-priorities { gap: .875rem !important; margin-top: 1.75rem; }
@@ -662,7 +727,7 @@ header[data-testid="stHeader"],
 .problem + .problem { margin-top: .5rem; }
 
 /* --------------------------------------------------------------- fine print */
-.fine { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem 4rem; margin-top: 1.5rem; }
+.fine { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem 3rem; margin-top: 1.5rem; }
 .stApp ul.fine-list { list-style: none; margin: .75rem 0 0; padding: 0; }
 .stApp ul.fine-list > li {
   margin: 0; padding: .6rem 0;
@@ -671,13 +736,6 @@ header[data-testid="stHeader"],
   max-width: 68ch;
 }
 .stApp ul.fine-list b { font-weight: 700; }
-.ours {
-  margin-top: 2.25rem; padding: 1rem 1.125rem;
-  border: 1.5px solid var(--ink);
-  border-radius: 3px;
-  max-width: 76ch;
-}
-.stApp .ours p { margin-top: .4rem; font-size: .9375rem; line-height: 1.5; color: var(--ink); }
 .foot {
   display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .75rem 2rem;
   margin-top: 2.5rem; padding: 1.125rem 0 2.25rem;
@@ -772,6 +830,15 @@ header[data-testid="stHeader"],
 
 .stApp [data-testid="stCheckbox"] label p { font-size: .9375rem; font-weight: 500; color: var(--fg); }
 
+.stApp [data-testid="stSlider"] [role="group"] { padding-top: .875rem; }
+.stApp [data-testid="stSlider"] [role="group"] > div[data-orientation] > div:first-child {
+  background-color: var(--ground-deep);
+  box-shadow: 0 0 0 4px var(--ground-deep), 0 0 0 5px rgba(240, 237, 226, .5);
+  border-radius: 999px;
+}
+.stApp [data-testid="stSlider"] [role="group"] > div[data-orientation] > div[data-rac] {
+  box-shadow: 0 0 0 2.5px var(--paper), 0 3px 8px rgba(0, 0, 0, .45);
+}
 .stApp [data-testid="stSlider"] [data-testid="stSliderThumbValue"] p {
   font: 800 1.0625rem/1 var(--display); color: var(--fg);
 }
@@ -802,7 +869,7 @@ header[data-testid="stHeader"],
 
 /* ----------------------------------------------------------------- loading */
 .loading { display: grid; gap: .875rem; }
-.stApp ol.strips.is-loading > li { animation: seed 1.6s var(--ease) infinite; animation-delay: calc(var(--i) * 160ms); }
+.stApp ol.strips.is-loading .strip-cell { min-height: 3.25rem; animation: seed 1.6s var(--ease) infinite; animation-delay: calc(var(--i) * 160ms); }
 .stApp .loading p { font-size: .9375rem; line-height: 1.45; color: var(--ink); }
 
 /* ------------------------------------------------------------------ motion */
@@ -840,12 +907,22 @@ header[data-testid="stHeader"],
     transition-duration: .01ms !important;
   }
   [data-testid="stMain"] { scroll-behavior: auto; }
+  .hz-band { animation: none !important; }
 }
 
 /* -------------------------------------------------------------- responsive */
 @media (max-width: 62rem) {
   .hero, .intro { grid-template-columns: minmax(0, 1fr); align-items: start; }
   .hero { row-gap: .75rem; }
+  .stApp h1.hero-h { display: block; grid-column: auto; grid-row: auto; }
+  .stApp h1.hero-h .hl-1 { white-space: normal; }
+  .stApp h1.hero-h .hl-2 { contain: none; }
+  .stApp p.hero-deck { grid-area: auto; justify-self: start; max-width: 46ch; padding-bottom: 0; }
+  .fine { grid-template-columns: minmax(0, 1fr); }
+  /* stacked: the answer leads, the map follows */
+  .st-key-hero-cols > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {
+    order: -1;
+  }
   .st-key-hero-cols > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {
     flex-direction: column !important;
   }
@@ -857,7 +934,7 @@ header[data-testid="stHeader"],
   .stApp dl.sch-nums { grid-column: 1 / -1; grid-template-columns: 1.4fr 1fr 1fr 1.2fr 1fr; }
 }
 @media (max-width: 52rem) {
-  .ledgers, .ledgers.is-three, .fine { grid-template-columns: minmax(0, 1fr); }
+  .ledgers, .ledgers.is-three { grid-template-columns: minmax(0, 1fr); }
   .ledgers { row-gap: 0; }
   .ledgers > div + div { margin-top: 1.75rem; }
   .stApp .ledgers > ul.ledger + ul.ledger { margin-top: 0; }
@@ -884,7 +961,7 @@ header[data-testid="stHeader"],
   .mast-nav { margin-left: 0; width: 100%; }
   .stApp dl.sch-nums { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: .6rem; }
   .why-checks { grid-template-columns: minmax(0, 1fr); }
-  .stApp ol.strips > li { padding-left: .65rem; padding-right: .25rem; }
+  .strip-cell { padding: .45rem .5rem .45rem .7rem; }
   .shift-row.is-next .shift-score { font-size: 1.75rem; }
 }
 </style>
@@ -908,7 +985,7 @@ ICONS = {
 
 MARK = ('<svg width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">'
         '<path d="M1 8C9 1 15 9 23 5s9-3 12-1v5c-4-3-7-2-12 1S9 6 1 13z" fill="#EFBB3F"/>'
-        '<path d="M1 14c8-7 14 1 22-3s9-3 12-1v5c-4-3-7-2-12 1S9 12 1 19z" fill="#F7F0DD"/>'
+        '<path d="M1 14c8-7 14 1 22-3s9-3 12-1v5c-4-3-7-2-12 1S9 12 1 19z" fill="#F0EDE2"/>'
         '<path d="M1 20c8-7 14 1 22-3s9-3 12-1v5c-4-3-7-2-12 1S9 18 1 24z" fill="#E58238"/></svg>')
 
 
@@ -1133,7 +1210,7 @@ def crop_marks(crop: dict) -> str:
         marks.append(icon("sod", 14, "perennial sod crop"))
     if crop["residue"] == "high":
         marks.append(icon("residue", 14, "high residue"))
-    return f'<span class="strip-marks">{"".join(marks)}</span>' if marks else ""
+    return f'<span class="strip-marks">{"".join(marks)}</span>'
 
 
 def strips_html(rotation, *, slots: int | None = None, added=(), flip: int = 0,
@@ -1146,11 +1223,12 @@ def strips_html(rotation, *, slots: int | None = None, added=(), flip: int = 0,
         tag = (f'<span class="strip-tag">{icon("plus", 11)}<span class="strip-tag-word">added</span></span>'
                if name in added else "")
         cells.append(
-            f'<li class="g-{ink}" style="--i:{i}"><span class="strip-top">'
+            f'<li class="g-{ink}" style="--i:{i}"><span class="strip-cell"><span class="strip-top">'
             f'<span class="strip-yr"><span class="strip-yr-word">Year </span>{i + 1}</span>{tag}</span>'
-            f'<span class="strip-crop">{esc(name)}{crop_marks(crop) if crop else ""}</span></li>')
+            f'<span class="strip-crop">{esc(name)}</span>{crop_marks(crop) if crop else ""}</span></li>')
     for i in range(len(rotation), slots or len(rotation)):
-        cells.append(f'<li class="strip-empty" style="--i:{i}" aria-hidden="true"></li>')
+        cells.append(f'<li class="strip-empty" style="--i:{i}" aria-hidden="true">'
+                     '<span class="strip-cell"></span></li>')
     return (f'<ol class="strips p{flip}" style="--n:{max(slots or 0, len(rotation))};--d:{delay_ms}ms" '
             f'aria-label="{esc(label or " then ".join(rotation))}">{"".join(cells)}</ol>')
 
@@ -1161,9 +1239,9 @@ def history_strips(seq: dict) -> str:
         crop = CROPS.get(CDL_TO_CROP.get(seq[year], ""))
         ink = GROUPS[crop["group"]][0] if crop else ""
         cells.append(
-            f'<li class="g-{ink}" style="--i:{i}"><span class="strip-top">'
+            f'<li class="g-{ink}" style="--i:{i}"><span class="strip-cell"><span class="strip-top">'
             f'<span class="strip-yr">{esc(year)}</span></span>'
-            f'<span class="strip-crop">{esc(seq[year])}</span></li>')
+            f'<span class="strip-crop">{esc(seq[year])}</span></span></li>')
     return (f'<ol class="strips strips-hist p0" style="--n:{len(cells)}" '
             f'aria-label="Crops by year">{"".join(cells)}</ol>')
 
@@ -1246,22 +1324,24 @@ def horizon_html(inks) -> str:
             "</svg></div>")
 
 
-CONTOUR = ('<div class="contour" aria-hidden="true"><svg viewBox="0 0 1200 20" '
-           'preserveAspectRatio="none"><path d="M0 12C200 2 400 20 600 10S1000 2 1200 12"/></svg></div>')
 WATER_TABLE = ('<div class="divide divide-water" aria-hidden="true"><svg viewBox="0 0 1440 56" '
                'preserveAspectRatio="none">'
                '<path class="dv-fill" d="M0 20C180 4 360 32 540 20S900 6 1080 22 1320 32 1440 16V56H0Z"/>'
                '<path class="dv-line" d="M0 34C180 20 360 46 540 34S900 22 1080 36 1320 46 1440 30"/>'
                '<path class="dv-line" d="M0 47C180 35 360 57 540 47S900 37 1080 49 1320 57 1440 43"/>'
                "</svg></div>")
-SKYLINE = ('<div class="divide divide-rock from-sky" aria-hidden="true"><svg viewBox="0 0 1440 56" '
-           'preserveAspectRatio="none">'
-           '<path class="dv-fill" d="M0 34L150 14 300 30 470 10 640 28 810 12 990 32 1150 14 1300 28 1440 12V56H0Z"/>'
-           "</svg></div>")
-BEDROCK = ('<div class="divide divide-rock" aria-hidden="true"><svg viewBox="0 0 1440 56" '
-           'preserveAspectRatio="none">'
-           '<path class="dv-fill" d="M0 34L150 14 300 30 470 10 640 28 810 12 990 32 1150 14 1300 28 1440 12V56H0Z"/>'
-           "</svg></div>")
+EDGE_PATHS = ["M0 26C200 6 420 40 680 24S1160 4 1440 22",
+              "M0 18C240 40 520 4 800 22S1240 42 1440 16",
+              "M0 30C180 12 380 36 620 20S1100 8 1440 28"]
+
+
+def edge(frm: str, to: str, shape: int = 0) -> str:
+    """The curved contour where one band of ink meets the next."""
+    d = EDGE_PATHS[shape % len(EDGE_PATHS)]
+    return (f'<div class="edge" style="--from:var(--{frm});--to:var(--{to})" aria-hidden="true">'
+            '<svg viewBox="0 0 1440 56" preserveAspectRatio="none">'
+            f'<path class="edge-over" d="{d}V56H0Z" transform="translate(0 -7)"/>'
+            f'<path class="edge-to" d="{d}V56H0Z"/></svg></div>')
 
 
 # ---------------------------------------------------------------------- data
@@ -1304,7 +1384,7 @@ def make_map(lat: float, lon: float, style: str) -> folium.Map:
 
     # 160 acres is about a 454 m radius circle, drawn like an inked field line.
     folium.Circle(
-        [lat, lon], radius=454, color="#F7F0DD", weight=2, dash_array="7 6",
+        [lat, lon], radius=454, color="#F0EDE2", weight=2, dash_array="7 6",
         fill=True, fill_color="#D2452F", fill_opacity=0.14).add_to(fmap)
 
     marker_html = ('<div class="fs-pin"><span class="fs-pin-ring"></span>'
@@ -1327,12 +1407,12 @@ def make_map(lat: float, lon: float, style: str) -> folium.Map:
   .fs-pin-dot {
     position: absolute; left: 12px; top: 12px; width: 20px; height: 20px;
     box-sizing: border-box; border-radius: 50%;
-    background: #D2452F; border: 3px solid #F7F0DD;
+    background: #D2452F; border: 3px solid #F0EDE2;
     box-shadow: 0 3px 8px rgba(0, 0, 0, .5);
   }
   .fs-pin-ring {
     position: absolute; inset: 5px; border-radius: 50%;
-    border: 2px solid #F7F0DD;
+    border: 2px solid #F0EDE2;
     animation: fs-ping 2.8s cubic-bezier(.16, 1, .3, 1) infinite;
   }
   @keyframes fs-ping {
@@ -1341,15 +1421,28 @@ def make_map(lat: float, lon: float, style: str) -> folium.Map:
   }
   @media (prefers-reduced-motion: reduce) { .fs-pin-ring { animation: none; opacity: .6; } }
   .leaflet-control-attribution {
-    background: rgba(247, 240, 221, .88) !important;
+    background: rgba(240, 237, 226, .84) !important;
     color: #5B4A39 !important;
     padding: 1px 6px !important;
-    font-size: 10px !important;
+    font-size: 9.5px !important;
+    line-height: 1.35 !important;
   }
+  @media (max-width: 480px) {
+    .leaflet-bottom.leaflet-right { left: 0; }
+    .leaflet-control-attribution {
+      max-width: 100%; box-sizing: border-box;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .leaflet-control-attribution:hover,
+    .leaflet-control-attribution:focus-within { white-space: normal; }
+  }
+  /* the scale bar sits top right, clear of the attribution line */
+  .leaflet-bottom.leaflet-left { top: 0; bottom: auto; left: auto; right: 0; }
+  .leaflet-bottom.leaflet-left .leaflet-control { margin: 10px 10px 0 0; }
   .leaflet-control-attribution a { color: #1F150D !important; }
   .leaflet-bar { border: 0 !important; box-shadow: 0 3px 9px rgba(2, 24, 28, .45) !important; border-radius: 3px !important; }
   .leaflet-bar a {
-    background: #F7F0DD !important; color: #1F150D !important;
+    background: #F0EDE2 !important; color: #1F150D !important;
     border-bottom-color: rgba(31, 21, 13, .2) !important;
     font-weight: 700;
   }
@@ -1357,20 +1450,20 @@ def make_map(lat: float, lon: float, style: str) -> folium.Map:
   .leaflet-bar a:last-child { border-radius: 0 0 3px 3px !important; }
   .leaflet-bar a:hover { background: #F4C24C !important; }
   .leaflet-control-scale-line {
-    background: rgba(247, 240, 221, .88) !important;
+    background: rgba(240, 237, 226, .88) !important;
     border-color: #1F150D !important;
     color: #1F150D !important;
     font-size: 10px !important;
   }
   .leaflet-tooltip {
-    background: #F7F0DD !important;
+    background: #F0EDE2 !important;
     border: 0 !important;
     border-radius: 2px !important;
     color: #1F150D !important;
     box-shadow: 0 3px 9px rgba(2, 24, 28, .45) !important;
     font-size: 12px !important; font-weight: 650;
   }
-  .leaflet-tooltip-top:before { border-top-color: #F7F0DD !important; }
+  .leaflet-tooltip-top:before { border-top-color: #F0EDE2 !important; }
 </style>
 """))
     return fmap
@@ -1413,13 +1506,16 @@ def fine_print(divider: str) -> None:
     in dry years.</li>
     </ul>
     </div>
-    </div>
-    <div class="ours">
+    <div>
     <h3 class="group-h">Our own rules of thumb</h3>
-    <p>The plain-word verdicts beside each measurement, such as “Carbon-rich” or “Erosion risk”,
-    use cut-offs we chose ourselves. So do each crop's functional group and residue class, and
-    the “three or more groups” threshold. None of the verdicts changes the ranking, and all of
-    these choices need an agronomist's review.</p>
+    <ul class="fine-list">
+    <li><b>The plain-word verdicts</b> beside each measurement, such as “Carbon-rich” or
+    “Erosion risk”, use cut-offs we chose ourselves. None of them changes the ranking.</li>
+    <li><b>Each crop's functional group and residue class,</b> and the “three or more groups”
+    threshold, are our own labels too.</li>
+    <li><b>All of these choices</b> need an agronomist's review.</li>
+    </ul>
+    </div>
     </div>
     <footer class="foot">
     <p><b>Field Shift</b>, built for the NASA Space Apps Challenge 2026. Data: NASA POWER,
@@ -1462,7 +1558,7 @@ with sky:
 </nav>
 </header>
 <div class="hero">
-<h1 class="hero-h"><span>Drop a pin.</span><span>NASA data fills in the rest.</span></h1>
+<h1 class="hero-h"><span class="hl-1">Drop a pin.</span> <span class="hl-2">NASA data fills in the rest.</span></h1>
 <p class="hero-deck">Field Shift reads the weather, soil, groundwater and crop history for
 the spot you pin, then ranks the crop rotations that fit it. It keeps what you grow now
 and shows its reasons.</p>
@@ -1474,8 +1570,15 @@ and shows its reasons.</p>
 
     # ------------------------------------------------------ the map plate
     with map_col, st.container(key="plate"):
+        emit(f"""
+<div class="plat">
+<div><p class="plat-title">Your field at {esc(coord_text(LAT, LON))}</p>
+<p class="plat-sub">The dashed circle marks 160 acres around the pin.</p></div>
+<svg class="north" width="26" height="42" viewBox="0 0 26 42" role="img" aria-label="North is up"><title>North is up</title><text x="13" y="10" text-anchor="middle">N</text><path class="north-head" d="M13 14l5.5 11h-11z"/><path d="M13 25v15"/></svg>
+</div>
+""")
         fmap = make_map(LAT, LON, st.session_state.get("map_style", "Hybrid"))
-        clicked = st_folium(fmap, height=400, use_container_width=True,
+        clicked = st_folium(fmap, height=384, use_container_width=True,
                             returned_objects=["last_clicked"], key="map")
         with st.container(key="plate-controls"):
             lat_col, lon_col, style_col = st.columns([3, 3, 5], vertical_alignment="bottom")
@@ -1486,10 +1589,7 @@ and shows its reasons.</p>
             with style_col:
                 st.radio("Map style", ["Hybrid", "Satellite", "Terrain"], horizontal=True,
                          label_visibility="collapsed", key="map_style")
-            emit(f"""
-<p class="plate-cap"><b>Your field: {esc(coord_text(LAT, LON))}.</b> Click the map to move
-the pin. The dashed circle is 160 acres.</p>
-""")
+            emit('<p class="plate-cap">Click the map to move the pin, or type its coordinates.</p>')
             with st.container(key="examples"):
                 emit('<p class="plate-cap">Or try a worked example:</p>')
                 for name, spot in EXAMPLES.items():
@@ -1515,7 +1615,7 @@ the pin. The dashed circle is 160 acres.</p>
             with waiting:
                 emit("""
 <div class="loading" role="status">
-<ol class="strips is-loading" style="--n:4" aria-hidden="true"><li style="--i:0"></li><li style="--i:1"></li><li style="--i:2"></li><li style="--i:3"></li></ol>
+<ol class="strips is-loading" style="--n:4" aria-hidden="true"><li style="--i:0"><span class="strip-cell"></span></li><li style="--i:1"><span class="strip-cell"></span></li><li style="--i:2"><span class="strip-cell"></span></li><li style="--i:3"><span class="strip-cell"></span></li></ol>
 <p>Reading NASA climate, groundwater, terrain and soil data for this spot. A new location
 takes about ten seconds while six data services answer.</p>
 </div>
@@ -1711,47 +1811,16 @@ These values come from a NASA grid cell about 50 km wide, so nearby fields share
                 st.rerun()
 
 if fp is None:
-    fine_print(SKYLINE)
+    fine_print(edge("sky", "paper", 2))
     st.stop()
 
 # ============================================================== the horizon
-horizon_inks = [GROUPS[CROPS[n]["group"]][0] for n in top["rotation"]] if top else \
-    ["corn", "grain", "squash", "hay"]
+horizon_inks = ([GROUPS[CROPS[n]["group"]][0] for n in top["rotation"]] if top
+                else ["corn", "grain", "squash", "hay"])
 emit(horizon_html(horizon_inks))
 
-# =============================================================== the ground
-ground = st.container(key="band-ground")
-with ground:
-    c = fp["criteria"]
-    seq = c.get("c19_crop_sequence") or {}
-    history = (history_strips(seq) if seq else
-               '<span class="slot">no field crop registered at this spot</span>')
-    num, label, _unit, _digits, source = CRITERIA["c19_crop_sequence"]
-    emit(f"""
-<section class="layer" aria-label="On the surface">
-<h2 class="layer-h">On the surface</h2>
-<p class="lead">What satellites saw growing at the pin, and the lie of the land. Crop history
-is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns no crop.</p>
-<div class="ledgers is-three">
-<div>
-<ul class="ledger">
-<li class="lg-row"><span class="lg-num">{esc(num)}</span>
-<div class="lg-main"><span class="lg-name">{esc(label)}</span></div>
-<div class="lg-meta"><span>{esc(source)}</span></div>
-<div class="lg-extra">{history}</div></li>
-</ul>
-</div>
-<div>
-<ul class="ledger">
-{ledger_row('c11_slope_pct', c)}
-{''.join(slot_row(*row) for row in UNWIRED)}
-</ul>
-</div>
-</div>
-</section>
-""")
-
-    # ------------------------------------------------------------ rotations
+# ============================================= the field: rotations, ranked
+with st.container(key="band-leaf"):
     if res:
         driest = ", ".join(str(y) for y, _r, _t in res["site"]["driest_years"])
         rot_lead = (f"Ranked from this field's ten-year temperature and rainfall, its three "
@@ -1762,7 +1831,6 @@ is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns n
     else:
         rot_lead = "Ranked by your priorities and the criteria measured for this field."
     emit(f"""
-{CONTOUR}
 <section class="layer" id="rotations" aria-label="Rotations, ranked for this field">
 <h2 class="layer-h">Rotations, ranked for this field</h2>
 <p class="lead">{esc(rot_lead)}</p>
@@ -1836,12 +1904,46 @@ The four soil-health checks count the colours and the three marks.</p>
                 + (f"Not offered here (poor climate fit): {', '.join(res['crops_not_offered'])}."
                    if res["crops_not_offered"] else ""))
         emit(f'<p class="small sch-foot">{esc(foot)}</p>')
+    emit('<div class="layer-end"></div>')
 
-    # ----------------------------------------------------------------- soil
+# ============================================== the surface: what grew here
+emit(edge("leaf", "grain", 0))
+with st.container(key="band-gold"):
+    c = fp["criteria"]
+    seq = c.get("c19_crop_sequence") or {}
+    history = (history_strips(seq) if seq else
+               '<span class="slot">no field crop registered at this spot</span>')
+    num, label, _unit, _digits, source = CRITERIA["c19_crop_sequence"]
+    emit(f"""
+<section class="layer layer-end" aria-label="On the surface">
+<h2 class="layer-h">On the surface</h2>
+<p class="lead">What satellites saw growing at the pin, and the lie of the land. Crop history
+is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns no crop.</p>
+<div class="ledgers is-three">
+<div>
+<ul class="ledger">
+<li class="lg-row"><span class="lg-num">{esc(num)}</span>
+<div class="lg-main"><span class="lg-name">{esc(label)}</span></div>
+<div class="lg-meta"><span>{esc(source)}</span></div>
+<div class="lg-extra">{history}</div></li>
+</ul>
+</div>
+<div>
+<ul class="ledger">
+{ledger_row('c11_slope_pct', c)}
+{''.join(slot_row(*row) for row in UNWIRED)}
+</ul>
+</div>
+</div>
+</section>
+""")
+
+# ================================================================= the soil
+emit(edge("grain", "ground", 1))
+with st.container(key="band-ground"):
     c = fp["criteria"]
     ph_note = f"scoring with your value, {ph:.1f}" if ph is not None else ""
     emit(f"""
-{CONTOUR}
 <section class="layer" aria-label="In the soil">
 <h2 class="layer-h">In the soil</h2>
 <p class="lead">The top 5 cm, read for a cell 250 m wide, so these values are local to the pin.</p>
@@ -1896,4 +1998,4 @@ and do not change the ranking.</p>
 """)
 
 # ============================================================ the fine print
-fine_print(BEDROCK)
+fine_print(edge("water", "paper", 2))
