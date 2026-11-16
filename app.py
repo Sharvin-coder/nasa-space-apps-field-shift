@@ -1831,7 +1831,7 @@ def model_tab() -> None:
 <p>{esc(md.NOVELTY_CLAIM)}</p>
 <p class="small">{esc(md.BUILDING_BLOCKS)}</p>
 
-<h3 class="group-h">How it would be trained and tested</h3>
+<h3 class="group-h">Training and evaluation plan</h3>
 <ol class="steps">{pairs(md.EVALUATION)}</ol>
 
 <h3 class="group-h">Where it could go wrong</h3>

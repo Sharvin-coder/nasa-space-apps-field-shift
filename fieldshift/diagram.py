@@ -78,7 +78,7 @@ def architecture_svg() -> str:
 
     # ---------------------------------------------------------------- header
     p.append(_text(20, 32, "The Farm Sight world model", 21, 800, INK, family=SERIF))
-    p.append(_text(20, 51, "Proposed neurosymbolic architecture",
+    p.append(_text(20, 51, "Neurosymbolic architecture",
                    12, 500, INK2))
     lx = 690
     for kind, name in (("data", "data"), ("neural", "neural (learned)"),
@@ -235,7 +235,7 @@ def architecture_svg() -> str:
 
     body = "".join(p)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{-GUTTER} 0 {W + 2 * GUTTER} {H}" role="img" '
-            f'aria-label="Architecture of the proposed Farm Sight world model: observations are '
+            f'aria-label="Architecture of the Farm Sight world model: observations are '
             f'harmonized and encoded, a two-clock world model predicts how the field changes '
             f'given the crop and the weather, a rule program anchors, masks and verifies it, '
             f'and a planner searches rotations across climate models.">{body}</svg>')

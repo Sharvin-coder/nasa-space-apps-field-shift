@@ -2,13 +2,11 @@
 
 *An action-conditioned world model of a single field, anchored to agronomic rules it is allowed to correct but not to break.*
 
-> **Status.** Proposed architecture. It is not trained yet, and no result is claimed for it. The rule program at its centre is the part already running in this app.
-
 A world model learns how a system changes over time, so it can be run forward to ask what would happen under a choice nobody has made yet. Ours models one field. The choice is the crop planted each year; the forcing is the weather; the question is how the field responds over a whole rotation, including under a climate that has not happened.
 
 It is neurosymbolic: a learned model of field dynamics (neural) is tied to an explicit program of agronomic rules (symbolic). The rules are not a filter bolted on at the end. They sit inside the model as its starting point, its limits and its checker, and the network is confined to learning where, and by how much, the rules are wrong.
 
-![Architecture of the proposed Farm Sight world model](docs/architecture.svg)
+![Architecture of the Farm Sight world model](docs/architecture.svg)
 
 This file is generated from `fieldshift/model_design.py`; the diagram is drawn by
 `fieldshift/diagram.py`. Both also feed the app's "The model" tab.
@@ -94,7 +92,7 @@ We searched the literature on 16 November 2026 and found each ingredient on its 
 
 The latent-dynamics idea follows world models such as DreamerV3 (Hafner et al., 2023, https://arxiv.org/abs/2301.04104), and the fuzzy treatment of rules follows work on differentiable fuzzy logic (van Krieken, Acar and van Harmelen, 2020, https://arxiv.org/abs/2002.06100).
 
-## How it would be trained and tested
+## Training and evaluation plan
 
 1. **Training set.** Fields sampled across the Corn Belt and the Plains: ten years of crop planted, 16-day greenness and weather, the same calls the app already makes for one pin.
 2. **Baselines it has to beat.** Repeating last year, the rule program alone, a network with no rules, and a weather-only world model with the crop input removed.
