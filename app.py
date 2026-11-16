@@ -1026,8 +1026,8 @@ EXTRA_CSS = """
 }
 .stApp .mdl ol.arch > li.k-neural { border-left-color: var(--water); }
 .stApp .mdl ol.arch > li.k-data { border-left-color: var(--leaf); }
-.mdl-fig { margin: 1.75rem 0 .5rem; overflow-x: auto; border: 1.5px solid var(--rule); background: var(--paper); }
-.mdl-fig-in { min-width: 62rem; line-height: 0; }
+.mdl-fig { margin: 1.75rem 0 .5rem; overflow-x: auto; border: 1px solid var(--rule); background: #FFFFFF; border-radius: 6px; }
+.mdl-fig-in { min-width: 54rem; line-height: 0; }
 .mdl-fig svg { display: block; width: 100%; height: auto; }
 .stApp .mdl table.why code { font: 600 .875rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: var(--fg); background: none; padding: 0; white-space: pre-wrap; }
