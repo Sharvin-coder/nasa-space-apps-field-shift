@@ -23,8 +23,8 @@ Field Shift: Adapting Farms with NASA Data
 
 ## High-level summary
 
-A farmer drops a pin on a map. Field Shift fills in 17 climate, water, terrain,
-soil and crop-history criteria for that spot from NASA and open data, with no
+A farmer drops a pin on a map. Field Shift fills in 19 climate, water, terrain,
+greenness, soil and crop-history criteria for that spot from NASA and open data, with no
 typing. The farmer sets three priorities (climate fit, soil health, water
 saving), and the tool ranks crop rotations against their current one, showing
 the reasons for each. It also shows how each rotation's climate fit changes
@@ -52,10 +52,35 @@ rainfall will not use the tool.
    grow now?". The farmer can correct it, and can also say the field is
    irrigated or enter a measured soil pH.
 4. **Priorities.** Three sliders: climate fit, soil health, water saving.
-5. **Ranked rotations.** The current rotation is scored as the baseline. The
+5. **AI reading.** On request, an AI analyst reads the field's measurements
+   and scores and explains in plain words what stands out, what the top shift
+   changes, and what to ask an agronomist. It never changes the ranking.
+6. **Ranked rotations.** The current rotation is scored as the baseline. The
    app then offers rotations that keep the current crops and add to them
    (a shift, not a restart), with the change in each score and a "Why" panel:
    which soil checks are met, and what limits each crop.
+
+## Beyond the ranking
+
+- **Climate time machine.** A year slider blends today's climate toward the
+  2040 projection, and two what-if sliders shift temperature and rainfall.
+  The ranking re-forms live and shows what moved. In central Iowa, +3 °C and
+  −30% rain drops the current corn → soybean rotation from 0.66 to 0.50 and
+  brings sorghum, which is not offered there today, into the top option.
+- **Ten-year replay.** Each rotation is re-scored with every one of the last
+  ten years' actual weather, with the driest years marked, so a farmer can
+  see how it would have fitted in the years they remember.
+- **Farmer constraints.** Crops the farmer cannot grow (equipment, market,
+  contracts) can be ruled out, alongside corrections for irrigation, soil pH
+  and the detected crops.
+- **One-page farm report.** A printable download with the inputs, the key
+  numbers and sources, the comparison, and questions to take to an
+  agronomist, generated from that field's own results.
+- **Plain-language help.** A glossary (evapotranspiration, aridity index,
+  root-zone wetness, groundwater percentile, frost-free days, growing degree
+  days), why legumes, sod crops, mixed plant groups and residue help the
+  soil, how satellite and ground measurements differ, how datasets of
+  different resolution are combined, and where local judgment is needed.
 
 ## Worked example
 
@@ -98,10 +123,11 @@ Built in Python with Streamlit. No API keys are needed, so anyone can run it.
 
 | Data | What we take from it |
 |---|---|
-| NASA POWER (MERRA-2, CERES) daily point data, 2015–2024 | Rain, temperature, growing degree days, heat days, frost-free days, solar radiation, root-zone wetness, aridity, rainfall variability, dry years |
-| NASA NEX-GDDP-CMIP6, through the NASA POWER climate projection service | Change in growing-season temperature and annual rain, 2015–2024 to 2035–2044, ensemble mean, SSP2-4.5 |
+| NASA POWER (MERRA-2, CERES) daily point data, 2016–2025 | Rain, temperature, growing degree days, heat days, frost-free days, solar radiation, root-zone wetness, aridity, rainfall variability, dry years |
+| NASA NEX-GDDP-CMIP6, through the NASA POWER climate projection service | Change in growing-season temperature and annual rain, 2016–2025 to 2035–2044, ensemble mean, SSP2-4.5 |
 | NASA GRACE / GRACE-FO data-assimilation drought indicator (rasters hosted by NDMC) | Groundwater wetness percentile: latest week and a 10-year average |
 | NASA SRTM 30 m elevation (through OpenTopoData) | Slope |
+| NASA MODIS MOD13Q1 vegetation indices, 250 m, every 16 days (through Microsoft Planetary Computer, with NASA's ORNL DAAC as fallback) | Peak greenness (NDVI) each year, its ten-year trend, and greenness in dry seasons against other years |
 
 ## Other data and references
 
@@ -132,8 +158,9 @@ We list these in the app and the README, because a farmer should know them.
 - **Our own judgment calls,** which need an agronomist's review: each crop's
   functional group and residue class, the "three or more groups" threshold,
   and the soil texture cut-offs.
-- **Two planned criteria are missing:** satellite greenness trend and
-  greenness drop in dry years (MODIS).
+- **Greenness is one 250 m pixel.** Near a field edge it mixes two fields,
+  and the crop grown changes the peak, so the trend is not soil health on its
+  own.
 
 ## What we tried and dropped
 
@@ -147,18 +174,27 @@ repository history.
 
 **[TEAM]** confirm wording against this year's Space Apps AI rules.
 
-Suggested text: We used Anthropic's Claude (Claude Code) as a coding assistant
-to write and test the Python code, find data endpoints and draft
-documentation. Team members chose the idea and direction and reviewed the
-results. The app itself contains no AI or machine-learning model: every
-recommendation comes from published crop ranges and conservation rules
-applied to measured data, and every score can be traced in the "Why" panel.
-No AI-generated images, video or audio are used.
+**[TEAM]** list every AI tool each member used. One commit in the history is
+labelled as a DeepSeek iteration, so the list below may be incomplete.
+
+Suggested text: We used AI coding assistants (Anthropic's Claude through
+Claude Code; **[TEAM]** add any others) to write and test the Python code,
+find data endpoints and draft documentation. Team members chose the idea and
+direction and reviewed the results.
+
+Inside the app, AI is used in one place: an optional "AI reading of this
+field", written by Anthropic's Claude from the measurements and scores already
+on the page. It interprets the data in plain language and is labelled as
+AI-written. It does not set or change any score: every ranking comes from
+published crop ranges and conservation rules applied to measured data, and can
+be traced in the "Why" panel. Figures in the AI text are checked against the
+data automatically and flagged if they do not match. No AI-generated images,
+video or audio are used.
 
 ## What's next
 
 - A profit view from real price and yield data.
-- Greenness history per field from MODIS or HLS.
+- Sharper greenness per field from HLS (30 m), and SMAP soil moisture.
 - Agronomist review of the crop labels and thresholds.
 - Growing seasons for the Southern Hemisphere and the tropics.
 - A printable one-page card for each field.

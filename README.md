@@ -42,8 +42,8 @@
 | 9 | Dry years in the last 10 | NASA POWER | done |
 | 10 | Groundwater wetness percentile, latest week and 10-year average | NASA GRACE / GRACE-FO drought indicator ([NDMC](https://nasagrace.unl.edu/)) | done |
 | 11 | Slope | NASA SRTM 30 m via [OpenTopoData](https://www.opentopodata.org/) | done |
-| 12 | Field greenness trend | NASA MODIS / HLS | not wired (see limits) |
-| 13 | Greenness drop in dry years | NASA MODIS / HLS | not wired (see limits) |
+| 12 | Peak greenness (NDVI): 10-year average and trend | NASA MODIS MOD13Q1, 250 m | done |
+| 13 | Greenness in dry seasons against other years | NASA MODIS and NASA POWER | done |
 | 14 | Projected 2040 temperature change | NASA NEX-GDDP-CMIP6 (POWER projection API) | done (US sites) |
 | 15 | Projected 2040 rainfall change | NASA NEX-GDDP-CMIP6 (POWER projection API) | done (US sites) |
 | 16 | Soil texture (clay, sand) | ISRIC SoilGrids | done |
@@ -75,6 +75,43 @@ it changes, and each rotation is drawn as a row of year strips coloured by
 functional group. Map tiles are Sentinel-2 cloudless (EOX) with Esri reference
 labels; every value on the page still comes from the live NASA and soil feeds.
 
+### Explore, not just rank
+
+- **Climate time machine.** A year slider blends today's climate (the
+  2016–2025 average) toward the 2035–2044 projection, and two what-if sliders
+  add your own shift (−2 to +4 °C, −30 to +30% rain). The ranking re-forms
+  live and each option shows where it ranked with today's climate ("was #3
+  today", "not offered today"). It is a straight-line what-if on crop fit,
+  not a forecast.
+- **Ten-year replay.** The current rotation and the top three options are
+  re-scored with each of the last ten years' actual rain and temperature,
+  with the three driest years lit, the worst year named, and the gap against
+  the current rotation. Fit with that year's weather, not a harvest result.
+- **Constraints.** Rule out crops you have no equipment, market or contract
+  for; they are never added to an option.
+- **One-page farm report.** A printable HTML download: what you entered, the
+  key measurements with sources, current rotation against the top three
+  (today, 2040 and worst-year fit, soil checks met and missed), questions for
+  your agronomist generated from the results, and the limits.
+- **Plain-language help.** A glossary worded to match the code, a short
+  account of why each kind of crop helps the soil (from NRCS 328), and fine
+  print on satellite versus ground measurements, how datasets of different
+  resolution are combined, and where local judgment is needed.
+
+### AI field analyst (optional)
+
+With an Anthropic API key, the main panel gains an "AI reading of this field".
+A language model (Claude) is given only the measurements and scores already on
+the page and writes a short plain-language reading: what stands out, what the
+top shift changes, and what to ask an agronomist. It never sets or changes a
+score. Figures in its text are checked against the data and flagged if they
+do not match. One reading is generated per field and settings, on request,
+with a daily cap (`fieldshift/analyst.py`).
+
+To switch it on, set `ANTHROPIC_API_KEY` as an environment variable locally,
+or as a secret on Streamlit Community Cloud. Without a key the panel is
+hidden and everything else works as before.
+
 The same engine runs from the terminal:
 
 ```bash
@@ -85,6 +122,8 @@ The same engine runs from the terminal:
   baseline, and offered rotations keep those crops and add to them.
 - `--fit`, `--soil`, `--water` are the farmer's priority weights (default 1 each).
 - `--json` prints everything, including all criteria and per-crop scores.
+- `--year-fraction`, `--temp-delta`, `--rain-pct` run a what-if climate, and
+  `--exclude alfalfa,canola` rules crops out.
 - `python -m fieldshift.fingerprint <lat> <lon>` prints just the criteria.
 
 Example (central Iowa, live data): corn → soybean scores 0.66; adding alfalfa
@@ -140,21 +179,25 @@ averaged), soil health and water saving, using the farmer's weights.
 - **Soil** is read from the ISRIC map server, with the SoilGrids point API as
   a fallback (that API often times out). If a source fails, the app shows the
   value as missing and offers a retry.
-- **Greenness (12–13) is not wired.** The NASA ORNL MODIS point service timed
-  out on every attempt, and the alternative needs heavy raster libraries.
+- **Greenness (12–13)** is the yearly peak NDVI of one 250 m MODIS pixel,
+  from good-quality 16-day composites between late April and mid September.
+  A pin near a field edge mixes two fields, and the crop grown changes the
+  peak, so the trend is not soil health on its own. It is read from the
+  Planetary Computer copy of MOD13Q1 (seconds), with NASA's ORNL DAAC point
+  service as a fallback (it can take a minute). Shown, not scored.
 
 ## Milestones
 
 1. ~~Location → criteria → ranked rotations with reasons, in the terminal.~~ Done.
 2. ~~Web app: map pin, criteria panel with overrides, priority sliders,
    recommendation cards.~~ Done (Streamlit, `app.py`).
-3. ~~Remaining criteria and the 2040 view.~~ Done except MODIS greenness (12–13).
+3. ~~Remaining criteria and the 2040 view.~~ Done.
 4. Pitch video and submission.
 
 ## Task split (three roles — claim one)
 
 **Role A — Data**
-- Remaining: greenness trend (12–13). Everything else is wired.
+- All 20 criteria are wired. Next: SMAP soil moisture in place of the MERRA-2 estimate.
 - Make each criterion fail safely: missing stays missing.
 
 **Role B — Recommendation engine**
@@ -183,7 +226,7 @@ cover crops improve drought resilience everywhere.
 ## Data sources
 
 - [NASA POWER](https://power.larc.nasa.gov/) — daily weather and solar
-- [NASA MODIS](https://modis.gsfc.nasa.gov/) / [HLS](https://www.earthdata.nasa.gov/data/projects/hls) — vegetation greenness
+- [NASA MODIS MOD13Q1](https://lpdaac.usgs.gov/products/mod13q1v061/) — vegetation greenness (NDVI), read through [Planetary Computer](https://planetarycomputer.microsoft.com/dataset/modis-13Q1-061) or the [ORNL DAAC](https://modis.ornl.gov/data/modis_webservice.html)
 - [NASA SMAP](https://smap.jpl.nasa.gov/) — soil moisture
 - [NASA GRACE-FO](https://gracefo.jpl.nasa.gov/) — groundwater, via the [GRACE drought indicator rasters](https://nasagrace.unl.edu/)
 - [NASA SRTM](https://www.earthdata.nasa.gov/data/instruments/srtm) — elevation, for slope
