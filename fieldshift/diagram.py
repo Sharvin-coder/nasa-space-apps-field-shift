@@ -78,7 +78,7 @@ def architecture_svg() -> str:
 
     # ---------------------------------------------------------------- header
     p.append(_text(20, 32, "The Farm Sight world model", 21, 800, INK, family=SERIF))
-    p.append(_text(20, 51, "Proposed neurosymbolic architecture. Design, not yet trained.",
+    p.append(_text(20, 51, "Proposed neurosymbolic architecture",
                    12, 500, INK2))
     lx = 690
     for kind, name in (("data", "data"), ("neural", "neural (learned)"),

@@ -1810,7 +1810,6 @@ def model_tab() -> None:
 <section class="layer mdl" aria-label="The model">
 <h2 class="layer-h">{esc(md.NAME)}</h2>
 <p class="lead">{esc(md.TAGLINE)}</p>
-<p class="status">{esc(md.STATUS)}</p>
 {summary}
 </section>
 <div class="mdl-fig"><div class="mdl-fig-in">{architecture_svg()}</div></div>
