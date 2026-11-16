@@ -14,7 +14,7 @@ import folium
 import streamlit as st
 from streamlit_folium import st_folium
 
-from fieldshift.fingerprint import fingerprint
+from fieldshift.fingerprint import END_YEAR, START_YEAR, fingerprint
 from fieldshift.recommend import (
     CDL_TO_CROP,
     detected_crops,
@@ -25,7 +25,6 @@ from fieldshift.recommend import (
 
 st.set_page_config(page_title="Field Shift", page_icon="🌾", layout="wide")
 
-REPO_URL = "https://github.com/Sharvin-coder/nasa-space-apps-field-shift"
 
 # The two worked examples from the submission write-up.
 EXAMPLES = {"Central Iowa": (42.10, -93.55), "Southwest Kansas": (38.05, -100.95)}
@@ -44,7 +43,7 @@ CRITERIA = {
     "c07_season_rain_cv": ("7", "Year-to-year rainfall variability", "CV", 2, "NASA POWER"),
     "c08_root_zone_wetness_0to1": ("8", "Root-zone soil wetness", "on a 0–1 scale", 2,
                                    "NASA POWER (MERRA-2)"),
-    "c09_dry_years": ("9", "Dry seasons, 2015–2024", "", 0, "NASA POWER"),
+    "c09_dry_years": ("9", f"Dry seasons, {START_YEAR}–{END_YEAR}", "", 0, "NASA POWER"),
     "c10_groundwater_percentile_latest": ("10", "Groundwater wetness now", "percentile", 1,
                                           "NASA GRACE-FO"),
     "c10_groundwater_percentile_10yr_mean": ("10", "Groundwater wetness, 10-year average",
@@ -1522,7 +1521,6 @@ def fine_print(divider: str) -> None:
     GRACE-FO, SRTM and NEX-GDDP-CMIP6; ISRIC SoilGrids; USDA Cropland Data Layer. Map imagery:
     Sentinel-2 cloudless by EOX, with labels and terrain from Esri.</p>
     <nav aria-label="More about Field Shift">
-    <a href="{REPO_URL}#readme" target="_blank" rel="noopener">Methodology</a>
     <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">NASA POWER</a>
     </nav>
     </footer>
@@ -1774,7 +1772,7 @@ ourselves as rules of thumb. They are not part of the data and never change the 
         emit(f"""
 <section class="layer" aria-label="In the air">
 <h2 class="layer-h">In the air</h2>
-<p class="lead">Ten years of daily weather, 2015 to 2024, and the change projected for 2040.
+<p class="lead">Ten years of daily weather, {START_YEAR} to {END_YEAR}, and the change projected for 2040.
 These values come from a NASA grid cell about 50 km wide, so nearby fields share them.</p>
 <div class="ledgers">
 <div>

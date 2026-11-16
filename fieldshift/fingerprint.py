@@ -40,7 +40,9 @@ CDL_URL = "https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLValue"
 CDL_USDA_URL = "https://pdi.scinet.usda.gov/image/rest/services/CDL_WM/ImageServer"
 SOILGRIDS_WCS = "https://maps.isric.org/mapserv"
 
-START_YEAR, END_YEAR = 2015, 2024
+# The ten most recent complete calendar years (2016-2025 when run in 2026).
+END_YEAR = date.today().year - 1
+START_YEAR = END_YEAR - 9
 # ASSUMPTION: Northern Hemisphere growing season, April-September.
 SEASON_MONTHS = {4, 5, 6, 7, 8, 9}
 GDD_BASE_C, GDD_CAP_C = 10.0, 30.0   # standard corn growing-degree-day bounds
@@ -164,7 +166,7 @@ def climate_criteria(p: dict) -> dict:
 
 # ------------------------------------------------- climate projection (14-15)
 def projection_criteria(lat: float, lon: float) -> dict:
-    """Change between 2015-2024 and 2035-2044 in the NEX-GDDP-CMIP6 ensemble.
+    """Change between the last ten complete years and 2035-2044 in the NEX-GDDP-CMIP6 ensemble.
 
     Both periods come from the same model ensemble, so the difference is a
     model-to-model change, not model minus observation. The ensemble mean
