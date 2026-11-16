@@ -1,11 +1,11 @@
-# Space Apps 2026 submission draft — Field Shift
+# Space Apps 2026 submission draft — Farm Sight
 
 Draft text for the project page. Items marked **[TEAM]** need a human answer.
 Every number below comes from a live run of the app on 14–15 November 2026.
 
 ## Project name
 
-Field Shift
+Farm Sight
 
 ## Challenge
 
@@ -23,7 +23,7 @@ Field Shift: Adapting Farms with NASA Data
 
 ## High-level summary
 
-A farmer drops a pin on a map. Field Shift fills in 19 climate, water, terrain,
+A farmer drops a pin on a map. Farm Sight fills in 19 climate, water, terrain,
 greenness, soil and crop-history criteria for that spot from NASA and open data, with no
 typing. The farmer sets three priorities (climate fit, soil health, water
 saving), and the tool ranks crop rotations against their current one, showing
@@ -211,4 +211,4 @@ video or audio are used.
 4. (20–26 s) Click southwest Kansas. "Different field, different answer:
    far drier, groundwater near its record low, and sorghum joins the
    rotation."
-5. (26–30 s) "Field Shift. NASA data in, an explained rotation out."
+5. (26–30 s) "Farm Sight. NASA data in, an explained rotation out."

@@ -197,7 +197,7 @@ def build_report(res: dict, inputs: dict, app_url: str = "") -> str:
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Field Shift farm report, {_e(where)}</title>
+<title>Farm Sight report, {_e(where)}</title>
 <style>
   body {{ font: 14px/1.45 Georgia, 'Times New Roman', serif; color: #1c1a15; background: #fff;
          max-width: 820px; margin: 24px auto; padding: 0 20px; }}
@@ -221,7 +221,7 @@ def build_report(res: dict, inputs: dict, app_url: str = "") -> str:
                   a {{ color: inherit; text-decoration: none; }} }}
   @media (max-width: 640px) {{ .cols {{ grid-template-columns: 1fr; }} }}
 </style></head><body>
-<h1>Field Shift farm report</h1>
+<h1>Farm Sight report</h1>
 <p class="sub">Field at {_e(where)} · prepared {date.today():%d %B %Y}{link}</p>
 {scenario_html}
 <h2>Current rotation against the top options</h2>
@@ -249,7 +249,7 @@ check: {_e(driest)}. Not offered here for poor climate fit: {_e(not_offered)}.</
 
 <h2>What this report cannot tell you</h2>
 <ul>{limits_html}</ul>
-<footer>Field Shift, NASA Space Apps Challenge 2026. Crop requirement ranges: FAO EcoCrop.
+<footer>Farm Sight, NASA Space Apps Challenge 2026. Crop requirement ranges: FAO EcoCrop.
 Soil-health checks: USDA NRCS Conservation Practice Standard 328. This report supports,
 and does not replace, advice from a local agronomist.</footer>
 </body></html>

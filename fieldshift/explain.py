@@ -60,7 +60,7 @@ GLOSSARY = [
      "grown also changes the peak, so compare like with like."),
 ]
 
-# (crop trait, what the standard says, whether Field Shift scores it)
+# (crop trait, what the standard says, whether Farm Sight scores it)
 CROP_BENEFITS = [
     ("Legumes",
      "Legumes such as soybean, peas, alfalfa and clover take nitrogen from the air. The "

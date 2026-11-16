@@ -1,4 +1,4 @@
-"""Field Shift -- Streamlit app.
+"""Farm Sight -- Streamlit app.
 
 Run from the repo root:
     streamlit run app.py
@@ -31,7 +31,7 @@ from fieldshift.recommend import (
     texture_class,
 )
 
-st.set_page_config(page_title="Field Shift", page_icon="🌾", layout="wide")
+st.set_page_config(page_title="Farm Sight", page_icon="🌾", layout="wide")
 
 APP_URL = "https://sharvin-coder-nasa-space-apps-field-shift-app-265jl1.streamlit.app/"
 TODAY_YEAR, FUTURE_YEAR = date.today().year, 2040   # ends of the climate time machine
@@ -1713,10 +1713,10 @@ def fine_print(divider: str) -> None:
     <p>{esc(UNCERTAINTY)}</p>
     </div>
     <footer class="foot">
-    <p><b>Field Shift</b>, built for the NASA Space Apps Challenge 2026. Data: NASA POWER,
+    <p><b>Farm Sight</b>, built for the NASA Space Apps Challenge 2026. Data: NASA POWER,
     GRACE-FO, SRTM and NEX-GDDP-CMIP6; ISRIC SoilGrids; USDA Cropland Data Layer. Map imagery:
     Sentinel-2 cloudless by EOX, with labels and terrain from Esri.</p>
-    <nav aria-label="More about Field Shift">
+    <nav aria-label="More about Farm Sight">
     <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">NASA POWER</a>
     </nav>
     </footer>
@@ -1747,7 +1747,7 @@ sky = st.container(key="band-sky")
 with sky:
     emit(f"""
 <header class="mast">
-<span class="mast-mark">{MARK}Field Shift</span>
+<span class="mast-mark">{MARK}Farm Sight</span>
 <span class="mast-tag">NASA Space Apps Challenge 2026</span>
 <nav class="mast-nav" aria-label="About this tool">
 <a href="#fine-print">How it scores</a>
@@ -1755,7 +1755,7 @@ with sky:
 </header>
 <div class="hero">
 <h1 class="hero-h"><span class="hl-1">Drop a pin.</span> <span class="hl-2">NASA data fills in the rest.</span></h1>
-<p class="hero-deck">Field Shift reads the weather, soil, groundwater and crop history for
+<p class="hero-deck">Farm Sight reads the weather, soil, groundwater and crop history for
 the spot you pin, then ranks the crop rotations that fit it. It keeps what you grow now
 and shows its reasons.</p>
 </div>
@@ -1955,7 +1955,7 @@ farmland, or try again in a moment.</div>
                 data=build_report(res, {"current": current, "weights": weights,
                                         "irrigated": irrigated, "ph": ph,
                                         "exclude": list(exclude)}, APP_URL),
-                file_name=f"field-shift-report_{LAT}_{LON}.html", mime="text/html",
+                file_name=f"farm-sight-report_{LAT}_{LON}.html", mime="text/html",
                 key="report", icon=":material/description:")
             others = len(recs) - 1
             if others > 0:

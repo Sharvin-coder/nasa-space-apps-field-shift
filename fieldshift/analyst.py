@@ -25,7 +25,7 @@ MODEL = "claude-opus-5-5"
 MAX_CALLS_PER_DAY = 100          # across all visitors of one running app
 _calls = {"day": None, "count": 0}
 
-SYSTEM = """You are the field analyst inside Field Shift, a decision-support tool that helps \
+SYSTEM = """You are the field analyst inside Farm Sight, a decision-support tool that helps \
 farmers compare crop rotations. A farmer has pinned a field on a map. The app fetched \
 measurements for that spot from NASA and open data, then scored crop rotations with fixed, \
 published rules. You receive all of it as one JSON object.
