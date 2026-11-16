@@ -60,6 +60,28 @@ rainfall will not use the tool.
    (a shift, not a restart), with the change in each score and a "Why" panel:
    which soil checks are met, and what limits each crop.
 
+## Beyond the ranking
+
+- **Climate time machine.** A year slider blends today's climate toward the
+  2040 projection, and two what-if sliders shift temperature and rainfall.
+  The ranking re-forms live and shows what moved. In central Iowa, +3 °C and
+  −30% rain drops the current corn → soybean rotation from 0.66 to 0.50 and
+  brings sorghum, which is not offered there today, into the top option.
+- **Ten-year replay.** Each rotation is re-scored with every one of the last
+  ten years' actual weather, with the driest years marked, so a farmer can
+  see how it would have fitted in the years they remember.
+- **Farmer constraints.** Crops the farmer cannot grow (equipment, market,
+  contracts) can be ruled out, alongside corrections for irrigation, soil pH
+  and the detected crops.
+- **One-page farm report.** A printable download with the inputs, the key
+  numbers and sources, the comparison, and questions to take to an
+  agronomist, generated from that field's own results.
+- **Plain-language help.** A glossary (evapotranspiration, aridity index,
+  root-zone wetness, groundwater percentile, frost-free days, growing degree
+  days), why legumes, sod crops, mixed plant groups and residue help the
+  soil, how satellite and ground measurements differ, how datasets of
+  different resolution are combined, and where local judgment is needed.
+
 ## Worked example
 
 Central Iowa (42.10, −93.55). Satellite crop maps show corn and soybean

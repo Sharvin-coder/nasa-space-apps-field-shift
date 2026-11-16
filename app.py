@@ -17,6 +17,10 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from fieldshift.analyst import analyse, build_payload
+from fieldshift.explain import (CROP_BENEFITS, GLOSSARY, HOW_COMBINED, REPLAY_NOTE,
+                                RESOLUTIONS, SATELLITE_VS_GROUND, SCENARIO_NOTE,
+                                UNCERTAINTY)
+from fieldshift.report import build_report, worst_year
 from fieldshift.fingerprint import fingerprint
 from fieldshift.recommend import (
     CDL_TO_CROP,
@@ -29,6 +33,8 @@ from fieldshift.recommend import (
 st.set_page_config(page_title="Field Shift", page_icon="🌾", layout="wide")
 
 REPO_URL = "https://github.com/Sharvin-coder/nasa-space-apps-field-shift"
+APP_URL = "https://sharvin-coder-nasa-space-apps-field-shift-app-265jl1.streamlit.app/"
+TODAY_YEAR, FUTURE_YEAR = 2024, 2040   # ends of the climate time machine
 
 # The two worked examples from the submission write-up.
 EXAMPLES = {"Central Iowa": (42.10, -93.55), "Southwest Kansas": (38.05, -100.95)}
@@ -971,6 +977,30 @@ header[data-testid="stHeader"],
 """
 
 # one tag colour per crop in "What do you grow now?", matching its strip ink
+EXTRA_CSS = """
+<style>
+.st-key-timemachine, .st-key-constraints { gap: .875rem !important; margin-top: 2.25rem; }
+.st-key-timemachine { margin-bottom: 1.5rem; }
+.st-key-constraints { max-width: 34rem; }
+.st-key-replay { margin-top: 2.25rem; }
+.replay { display: grid; gap: 1.125rem; margin-top: .875rem; }
+.replay-row { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 1.25rem; align-items: end; }
+.replay-name { font-size: .9375rem; line-height: 1.35; color: var(--fg); }
+.replay-name b { display: block; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--fg2); font-weight: 650; }
+.replay-nums { font-size: .875rem; line-height: 1.4; color: var(--fg2); }
+.replay-nums b { color: var(--fg); }
+.scn { margin-top: .25rem; font-size: .9375rem; line-height: 1.45; color: var(--fg); }
+.scn b { font-weight: 700; }
+dl.gloss { margin: .25rem 0 0; max-width: 46rem; }
+dl.gloss dt { margin-top: .75rem; font-weight: 700; font-size: .9375rem; color: var(--fg); }
+dl.gloss dd { margin: .125rem 0 0; font-size: .9375rem; line-height: 1.5; color: var(--fg); }
+dl.gloss dd .how { display: block; font-size: .8125rem; color: var(--fg2); }
+@media (max-width: 760px) { .replay-row { grid-template-columns: 1fr; gap: .4rem; } }
+</style>
+"""
+
 CSS_TAGS = "<style>" + "".join(
     f'.stApp span[data-tag][aria-label="{name}"]{{background:var(--{GROUPS[c["group"]][0]})!important;}}'
     for name, c in CROPS.items()) + "</style>"
@@ -1259,7 +1289,7 @@ def delta_html(value, baseline_value) -> str:
 
 
 def schedule_row(r: dict, *, rank: int | None, baseline: dict | None, slots: int,
-                 current, flip: int) -> str:
+                 current, flip: int, moved: str = "") -> str:
     met = sum(1 for ok in r["soil_checks"].values() if ok)
     rank_html = (f'<div class="sch-rank">{rank}</div>' if rank
                  else '<div class="sch-rank is-now">Now</div>')
@@ -1271,7 +1301,7 @@ def schedule_row(r: dict, *, rank: int | None, baseline: dict | None, slots: int
 {rank_html}
 {strips_html(r['rotation'], slots=slots, added=added, flip=flip, delay_ms=(rank or 0) * 70)}
 <dl class="sch-nums">
-<div><dt>Overall score</dt><dd class="sch-score"><span class="sch-score-wrap">{r['score']:.2f}{delta}</span></dd></div>
+<div><dt>Overall score</dt><dd class="sch-score"><span class="sch-score-wrap">{r['score']:.2f}{delta}{moved}</span></dd></div>
 <div><dt>Climate fit</dt><dd>{r['fit']:.2f}</dd></div>
 <div><dt>Soil checks</dt><dd>{met} of 4</dd></div>
 <div><dt>Water saving</dt><dd>{r['water_saving']:.2f}</dd></div>
@@ -1279,6 +1309,80 @@ def schedule_row(r: dict, *, rank: int | None, baseline: dict | None, slots: int
 </dl>
 </div>
 """
+
+
+def moved_html(r: dict, rank: int, base_res: dict | None) -> str:
+    """Where this rotation ranked with today's climate, when a scenario is on."""
+    if base_res is None:
+        return ""
+    key = tuple(sorted(r["rotation"]))
+    order = base_res["order"]
+    if key not in order:
+        return '<span class="delta up">not offered today</span>'
+    was = order.index(key) + 1
+    if was == rank:
+        return '<span class="delta flat">same rank today</span>'
+    return f'<span class="delta {"up" if was > rank else "down"}">was #{was} today</span>'
+
+
+def replay_html(res: dict, baseline: dict | None, recs: list) -> str:
+    """Each rotation's crop fit replayed through the last ten years of actual weather."""
+    marked = {y for y, _r, _t in res["site"]["driest_years"]}
+    base_worst = worst_year(baseline) if baseline else None
+    entries = ([("Now", baseline)] if baseline else []) + [
+        (f"Option {i}", r) for i, r in enumerate(recs[:3], 1)]
+    rows = []
+    for label, r in entries:
+        by_year = r.get("fit_by_year") or {}
+        if not by_year:
+            continue
+        years = sorted(by_year)
+        bars = "".join(
+            f'<i class="{"is-mark" if y in marked else ""}" style="--h:{max(3.0, 100 * by_year[y]):.0f}%" '
+            f'title="{y}: fit {by_year[y]:.2f}"></i>' for y in years)
+        ticks = "".join(f"<span>’{str(y)[2:]}</span>" for y in years)
+        average = sum(by_year.values()) / len(by_year)
+        w_year, w_fit = worst_year(r)
+        gap = ""
+        if base_worst and r is not baseline:
+            diff = w_fit - base_worst[1]
+            gap = (" · worst year same as now" if abs(diff) < 0.005
+                   else f" · worst year <b>{diff:+.2f}</b> vs now")
+        rotation = " → ".join(r["rotation"])
+        rows.append(
+            f'<div class="replay-row"><div class="replay-name"><b>{esc(label)}</b>{esc(rotation)}</div>'
+            f'<div><div class="hist hist-bars" role="img" aria-label="Crop fit of {esc(rotation)} '
+            f'with each year\'s weather, {years[0]} to {years[-1]}">{bars}</div>'
+            f'<div class="hist hist-x" aria-hidden="true">{ticks}</div></div>'
+            f'<div class="replay-nums">average <b>{average:.2f}</b> · worst <b>{w_fit:.2f}</b> '
+            f"in {w_year}{gap}</div></div>")
+    return f'<div class="replay">{"".join(rows)}</div>' if rows else ""
+
+
+def glossary_html() -> str:
+    return '<dl class="gloss">' + "".join(
+        f"<dt>{esc(term)}</dt><dd>{esc(text)}</dd>" for term, text in GLOSSARY) + "</dl>"
+
+
+def benefits_html() -> str:
+    return '<dl class="gloss">' + "".join(
+        f'<dt>{esc(trait)}</dt><dd>{esc(text)}<span class="how">{esc(scored)}</span></dd>'
+        for trait, text, scored in CROP_BENEFITS) + "</dl>"
+
+
+def resolutions_html() -> str:
+    rows = "".join(
+        f'<tr><th scope="row">{esc(name)}</th><td>{esc(what)}</td><td>{esc(cell)}</td>'
+        f"<td>{esc(when)}</td></tr>" for name, what, cell, when in RESOLUTIONS)
+    return ('<div class="why-wrap"><table class="why"><thead><tr><th scope="col">Dataset</th>'
+            '<th scope="col">What we take</th><th scope="col">One cell covers</th>'
+            f'<th scope="col">Updated</th></tr></thead><tbody>{rows}</tbody></table></div>')
+
+
+def reset_scenario() -> None:
+    st.session_state.sc_year = TODAY_YEAR
+    st.session_state.sc_temp = 0.0
+    st.session_state.sc_rain = 0
 
 
 def why_html(r: dict) -> str:
@@ -1571,6 +1675,19 @@ def fine_print(divider: str) -> None:
     </ul>
     </div>
     </div>
+    <div class="ours" style="margin-top:1.75rem">
+    <h3 class="group-h">Satellites and models, not a probe in your field</h3>
+    <p>{esc(SATELLITE_VS_GROUND)}</p>
+    </div>
+    <div class="ours" style="margin-top:1.75rem">
+    <h3 class="group-h">How data of different sharpness is combined</h3>
+    <p>{esc(HOW_COMBINED)}</p>
+    {resolutions_html()}
+    </div>
+    <div class="ours" style="margin-top:1.75rem">
+    <h3 class="group-h">How sure is this, and where local knowledge comes in</h3>
+    <p>{esc(UNCERTAINTY)}</p>
+    </div>
     <footer class="foot">
     <p><b>Field Shift</b>, built for the NASA Space Apps Challenge 2026. Data: NASA POWER,
     GRACE-FO, SRTM and NEX-GDDP-CMIP6; ISRIC SoilGrids; USDA Cropland Data Layer. Map imagery:
@@ -1590,13 +1707,17 @@ st.session_state.setdefault("lon", -93.55)
 st.session_state.setdefault("w_fit", 1)
 st.session_state.setdefault("w_soil", 1)
 st.session_state.setdefault("w_water", 1)
+st.session_state.setdefault("sc_year", TODAY_YEAR)
+st.session_state.setdefault("sc_temp", 0.0)
+st.session_state.setdefault("sc_rain", 0)
+st.session_state.setdefault("exclude", [])
 # a map click is applied here, before the coordinate boxes are drawn
 if "pending_click" in st.session_state:
     st.session_state.lat, st.session_state.lon = st.session_state.pop("pending_click")
 crop_names = list(CROPS)
 LAT, LON = round(st.session_state.lat, 3), round(st.session_state.lon, 3)
 
-st.markdown(CSS + CSS_TAGS, unsafe_allow_html=True)
+st.markdown(CSS + CSS_TAGS + EXTRA_CSS, unsafe_allow_html=True)
 
 # ================================================================== the sky
 sky = st.container(key="band-sky")
@@ -1697,12 +1818,26 @@ takes about ten seconds while six data services answer.</p>
     use_ph = bool(st.session_state.get("use_ph", False))
     ph = float(st.session_state.get("ph_value", 6.5)) if use_ph else None
 
+    exclude = tuple(n for n in st.session_state.exclude if n in CROPS and n not in current)
+    sc_year = int(st.session_state.sc_year)
+    sc_temp = float(st.session_state.sc_temp)
+    sc_rain = int(st.session_state.sc_rain)
+    scenario = None
+    if sc_year != TODAY_YEAR or sc_temp or sc_rain:
+        scenario = {"year_fraction": (sc_year - TODAY_YEAR) / (FUTURE_YEAR - TODAY_YEAR),
+                    "temp_delta": sc_temp, "rain_pct": sc_rain}
+
     res = None
+    base_res = None      # the ranking with today's climate, when a scenario is on
     rec_error = None
     if fp is not None and sum(weights.values()) > 0:
         try:
+            overrides = {"ph": ph, "irrigated": irrigated or None}
             res = recommend(LAT, LON, weights, top=5, current=tuple(current), fp=fp,
-                            overrides={"ph": ph, "irrigated": irrigated or None})
+                            overrides=overrides, scenario=scenario, exclude=exclude)
+            if scenario:
+                base_res = recommend(LAT, LON, weights, top=5, current=tuple(current), fp=fp,
+                                     overrides=overrides, exclude=exclude)
         except Exception as exc:
             rec_error = exc
 
@@ -1788,6 +1923,17 @@ farmland, or try again in a moment.</div>
             with st.expander("Why this shift"):
                 emit(why_html(top))
             ai_panel(res)
+            if scenario:
+                emit('<p class="plan-note"><b>What-if scenario on.</b> These scores use the '
+                     'shifted climate set in the <a href="#rotations">climate time machine</a>, '
+                     "not today's.</p>")
+            st.download_button(
+                "Download the one-page farm report",
+                data=build_report(res, {"current": current, "weights": weights,
+                                        "irrigated": irrigated, "ph": ph,
+                                        "exclude": list(exclude)}, APP_URL),
+                file_name=f"field-shift-report_{LAT}_{LON}.html", mime="text/html",
+                key="report", icon=":material/description:")
             others = len(recs) - 1
             if others > 0:
                 emit(f'<p class="plan-more"><a href="#rotations">{icon("down", 15)}'
@@ -1812,6 +1958,8 @@ ourselves as rules of thumb. They are not part of the data and never change the 
 </div>
 </div>
 """)
+        with st.expander("Glossary: what the terms on this page mean"):
+            emit(glossary_html())
         if fp["notes"]:
             with st.container(key="problems"):
                 emit("".join(f'<div class="problem">{icon("alert", 16)}<span>{esc(note)}</span></div>'
@@ -1901,6 +2049,39 @@ with st.container(key="band-leaf"):
         with water_col:
             st.slider("Water saving", 0, 5, key="w_water")
 
+    with st.container(key="constraints"):
+        emit('<div class="group-head"><h3 class="group-h">Anything you cannot grow?</h3>'
+             '<p class="small">Rule out crops you have no equipment, market or contract for. '
+             "They will not be added to any option.</p></div>")
+        st.multiselect("Crops to leave out", crop_names,
+                       key="exclude", placeholder="None ruled out",
+                       label_visibility="collapsed")
+
+    with st.container(key="timemachine"):
+        emit('<div class="group-head"><h3 class="group-h">Climate time machine</h3>'
+             f'<p class="small">{esc(SCENARIO_NOTE)}</p></div>')
+        year_col, temp_col, rain_col = st.columns(3, gap="large")
+        with year_col:
+            st.slider(f"Climate of the year ({TODAY_YEAR} is today)", TODAY_YEAR, FUTURE_YEAR,
+                      key="sc_year")
+        with temp_col:
+            st.slider("Warmer or cooler, °C", -2.0, 4.0, step=0.5, format="%+.1f", key="sc_temp")
+        with rain_col:
+            st.slider("Wetter or drier, % rain", -30, 30, step=5, format="%+d", key="sc_rain")
+        if scenario and res:
+            site_now = res["site"]
+            observed = site_now["observed"]
+            line = (f"<b>Scenario on.</b> Scoring with a growing-season temperature of "
+                    f"<b>{site_now['temp']:.1f} °C</b> (measured {observed['temp']:.1f}) and "
+                    f"annual rain of <b>{site_now['rain']:.0f} mm</b> (measured "
+                    f"{observed['rain']:.0f}). The tags beside each score show where the "
+                    "rotation ranks with today's climate.")
+            if sc_year != TODAY_YEAR and not site_now["scenario"]["projection_used"]:
+                line += (" No 2040 projection is available for this location, so the year "
+                         "slider has no effect here.")
+            emit(f'<p class="scn">{line}</p>')
+            st.button("Back to today's climate", key="sc-reset", on_click=reset_scenario)
+
     if sum(weights.values()) == 0:
         emit(f'<div class="problem" style="margin-top:1.5rem">{icon("alert", 16)}<span>Every '
              "priority is at zero, so there is nothing to rank by. Raise at least one.</span></div>")
@@ -1945,7 +2126,8 @@ The four soil-health checks count the colours and the three marks.</p>
             for index, r in enumerate(recs, 1):
                 with st.container(key=f"rank-{index}"):
                     emit(schedule_row(r, rank=index, baseline=baseline, slots=slots,
-                                      current=current, flip=flip))
+                                      current=current, flip=flip,
+                                      moved=moved_html(r, index, base_res)))
                     with st.expander(f"Why option {index} scores {r['score']:.2f}"):
                         emit(why_html(r))
 
@@ -1957,6 +2139,20 @@ The four soil-health checks count the colours and the three marks.</p>
                 + (f"Not offered here (poor climate fit): {', '.join(res['crops_not_offered'])}."
                    if res["crops_not_offered"] else ""))
         emit(f'<p class="small sch-foot">{esc(foot)}</p>')
+        if res.get("crops_excluded"):
+            emit('<p class="small sch-foot">Left out at your request: '
+                 f'{esc(", ".join(res["crops_excluded"]))}.</p>')
+
+        replay = replay_html(res, baseline, recs)
+        if replay:
+            with st.container(key="replay"):
+                emit('<div class="group-head"><h3 class="group-h">Ten-year replay</h3>'
+                     f'<p class="small">{esc(REPLAY_NOTE)}</p></div>' + replay)
+        with st.expander("Why these kinds of crops help the soil"):
+            emit(benefits_html()
+                 + '<p class="small" style="margin-top:.75rem">Paraphrased from USDA NRCS '
+                 "Conservation Practice Standard 328, Conservation Crop Rotation, and FAO "
+                 "EcoCrop.</p>")
     emit('<div class="layer-end"></div>')
 
 # ============================================== the surface: what grew here

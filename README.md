@@ -75,6 +75,29 @@ it changes, and each rotation is drawn as a row of year strips coloured by
 functional group. Map tiles are Sentinel-2 cloudless (EOX) with Esri reference
 labels; every value on the page still comes from the live NASA and soil feeds.
 
+### Explore, not just rank
+
+- **Climate time machine.** A year slider blends today's climate (the
+  2015–2024 average) toward the 2035–2044 projection, and two what-if sliders
+  add your own shift (−2 to +4 °C, −30 to +30% rain). The ranking re-forms
+  live and each option shows where it ranked with today's climate ("was #3
+  today", "not offered today"). It is a straight-line what-if on crop fit,
+  not a forecast.
+- **Ten-year replay.** The current rotation and the top three options are
+  re-scored with each of the last ten years' actual rain and temperature,
+  with the three driest years lit, the worst year named, and the gap against
+  the current rotation. Fit with that year's weather, not a harvest result.
+- **Constraints.** Rule out crops you have no equipment, market or contract
+  for; they are never added to an option.
+- **One-page farm report.** A printable HTML download: what you entered, the
+  key measurements with sources, current rotation against the top three
+  (today, 2040 and worst-year fit, soil checks met and missed), questions for
+  your agronomist generated from the results, and the limits.
+- **Plain-language help.** A glossary worded to match the code, a short
+  account of why each kind of crop helps the soil (from NRCS 328), and fine
+  print on satellite versus ground measurements, how datasets of different
+  resolution are combined, and where local judgment is needed.
+
 ### AI field analyst (optional)
 
 With an Anthropic API key, the main panel gains an "AI reading of this field".
@@ -99,6 +122,8 @@ The same engine runs from the terminal:
   baseline, and offered rotations keep those crops and add to them.
 - `--fit`, `--soil`, `--water` are the farmer's priority weights (default 1 each).
 - `--json` prints everything, including all criteria and per-crop scores.
+- `--year-fraction`, `--temp-delta`, `--rain-pct` run a what-if climate, and
+  `--exclude alfalfa,canola` rules crops out.
 - `python -m fieldshift.fingerprint <lat> <lon>` prints just the criteria.
 
 Example (central Iowa, live data): corn → soybean scores 0.66; adding alfalfa
