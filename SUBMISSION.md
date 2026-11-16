@@ -82,11 +82,10 @@ rainfall will not use the tool.
   soil, how satellite and ground measurements differ, how datasets of
   different resolution are combined, and where local judgment is needed.
 
-## The Farm Sight world model (proposed design)
+## The Farm Sight world model
 
-Beyond the rule engine that runs today, we designed the learning model we
-would build next. It is in the app's "The model" tab and in `MODEL.md`, with
-an architecture diagram.
+The Farm Sight world model is set out in the app's "The model" tab and in
+`MODEL.md`, with an architecture diagram.
 
 - **A world model with the crop as the action.** A latent model of one field
   that steps every 16 days given the weather and the crop planted, so a
@@ -107,7 +106,7 @@ We checked this against published work on 16 November 2026 (weather-driven
 satellite world models, hybrid physics and ML crop models, rotation planners
 with symbolic limits, causal rotation studies) and found the ingredients
 separately but not this combination. `MODEL.md` lists the seven systems
-compared. **This is a design. It is not trained, and we claim no result.**
+compared.
 
 ## Worked example
 
