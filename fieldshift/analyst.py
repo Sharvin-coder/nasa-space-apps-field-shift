@@ -110,6 +110,7 @@ def build_payload(res: dict) -> dict:
         "measurements": {k: v for k, v in c.items() if not k.startswith("_")},
         "growing_season_rain_by_year_mm": c.get("_season_rain_by_year_mm"),
         "groundwater_percentile_by_week": c.get("_groundwater_percentile_by_date"),
+        "peak_greenness_ndvi_by_year": c.get("_peak_ndvi_by_year"),
         "three_driest_years_annual_rain_mm": {str(y): r for y, r, _ in site["driest_years"]},
         "soil_texture_class": site["texture"],
         "climate_used_for_2040_fit": site.get("future"),

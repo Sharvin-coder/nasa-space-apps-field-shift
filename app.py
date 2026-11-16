@@ -59,6 +59,12 @@ CRITERIA = {
     "c10_groundwater_percentile_10yr_mean": ("10", "Groundwater wetness, 10-year average",
                                              "percentile", 1, "NASA GRACE / GRACE-FO"),
     "c11_slope_pct": ("11", "Slope", "%", 1, "NASA SRTM"),
+    "c12_peak_ndvi_mean": ("12", "Peak greenness (NDVI), 10-year average", "", 2,
+                           "NASA MODIS 250m"),
+    "c12_greenness_trend_per_decade": ("12", "Greenness trend", "NDVI per decade", 3,
+                                       "NASA MODIS 250m"),
+    "c13_greenness_drop_dry_years": ("13", "Greenness in dry seasons vs other years", "NDVI", 3,
+                                     "NASA MODIS and POWER"),
     "c14_season_temp_change_2040_c": ("14", "Projected temperature change by 2040", "°C", 2,
                                       "NASA NEX-GDDP-CMIP6"),
     "c15_annual_rain_change_2040_pct": ("15", "Projected rainfall change by 2040", "%", 1,
@@ -71,12 +77,11 @@ CRITERIA = {
     "c19_crop_sequence": ("19", "Crops grown here, last 5 years", "", 0,
                           "USDA Cropland Data Layer"),
 }
-SIGNED = {"c14_season_temp_change_2040_c", "c15_annual_rain_change_2040_pct"}
+SIGNED = {"c14_season_temp_change_2040_c", "c15_annual_rain_change_2040_pct",
+          "c12_greenness_trend_per_decade", "c13_greenness_drop_dry_years"}
 
 # Planned criteria that are not wired yet (README, criteria 12 and 13).
 UNWIRED = [
-    ("12", "Field greenness trend", "NASA MODIS / HLS"),
-    ("13", "Greenness drop in dry years", "NASA MODIS / HLS"),
 ]
 
 CROPS = {c["crop"]: c for c in load_crops()}
@@ -1359,6 +1364,21 @@ def replay_html(res: dict, baseline: dict | None, recs: list) -> str:
     return f'<div class="replay">{"".join(rows)}</div>' if rows else ""
 
 
+def ndvi_bars(peaks: dict, marked) -> str:
+    """Peak greenness per year as bars on a 0 to 1 scale, dry seasons lit."""
+    if not peaks:
+        return ""
+    years = sorted(peaks)
+    bars = "".join(
+        f'<i class="{"is-mark" if y in marked else ""}" style="--h:{max(3.0, 100 * peaks[y]):.0f}%" '
+        f'title="{y}: NDVI {peaks[y]:.2f}"></i>' for y in years)
+    ticks = "".join(f"<span>’{str(y)[2:]}</span>" for y in years)
+    return ('<div class="hist hist-bars" role="img" aria-label="Peak greenness (NDVI) each year">'
+            f'{bars}</div><div class="hist hist-x" aria-hidden="true">{ticks}</div>'
+            '<p class="hist-cap">Peak greenness each year, on a scale of 0 to 1. '
+            "Dry seasons are the lit bars.</p>")
+
+
 def glossary_html() -> str:
     return '<dl class="gloss">' + "".join(
         f"<dt>{esc(term)}</dt><dd>{esc(text)}</dd>" for term, text in GLOSSARY) + "</dl>"
@@ -1660,8 +1680,9 @@ def fine_print(divider: str) -> None:
     <li><b>It is centred on the United States.</b> Crop history covers the contiguous US only,
     and the 2040 projection returned no data for our test sites elsewhere.</li>
     <li><b>One growing window,</b> April to September, is used for every crop.</li>
-    <li><b>Two planned criteria are not wired yet:</b> field greenness trend and greenness drop
-    in dry years.</li>
+    <li><b>Greenness is one 250 m pixel.</b> Near a field edge it mixes two fields, and the
+    crop grown changes the peak as much as the weather does, so the trend is not a measure of
+    soil health on its own. It does not change the ranking.</li>
     </ul>
     </div>
     <div>
@@ -2167,7 +2188,8 @@ with st.container(key="band-gold"):
 <section class="layer layer-end" aria-label="On the surface">
 <h2 class="layer-h">On the surface</h2>
 <p class="lead">What satellites saw growing at the pin, and the lie of the land. Crop history
-is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns no crop.</p>
+is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns no crop.
+Greenness is read for a 250 m pixel, which can straddle two fields near an edge.</p>
 <div class="ledgers is-three">
 <div>
 <ul class="ledger">
@@ -2181,6 +2203,13 @@ is read for one pixel, 10 to 30 m wide, so a pin on a road or farmyard returns n
 <ul class="ledger">
 {ledger_row('c11_slope_pct', c)}
 {''.join(slot_row(*row) for row in UNWIRED)}
+</ul>
+</div>
+<div>
+<ul class="ledger">
+{ledger_row('c12_peak_ndvi_mean', c, extra=ndvi_bars(c.get('_peak_ndvi_by_year') or {}, set(c.get('c09_dry_years') or [])))}
+{ledger_row('c12_greenness_trend_per_decade', c, sub=True)}
+{ledger_row('c13_greenness_drop_dry_years', c)}
 </ul>
 </div>
 </div>

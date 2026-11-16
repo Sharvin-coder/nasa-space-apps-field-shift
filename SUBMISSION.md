@@ -23,8 +23,8 @@ Field Shift: Adapting Farms with NASA Data
 
 ## High-level summary
 
-A farmer drops a pin on a map. Field Shift fills in 17 climate, water, terrain,
-soil and crop-history criteria for that spot from NASA and open data, with no
+A farmer drops a pin on a map. Field Shift fills in 19 climate, water, terrain,
+greenness, soil and crop-history criteria for that spot from NASA and open data, with no
 typing. The farmer sets three priorities (climate fit, soil health, water
 saving), and the tool ranks crop rotations against their current one, showing
 the reasons for each. It also shows how each rotation's climate fit changes
@@ -127,6 +127,7 @@ Built in Python with Streamlit. No API keys are needed, so anyone can run it.
 | NASA NEX-GDDP-CMIP6, through the NASA POWER climate projection service | Change in growing-season temperature and annual rain, 2015–2024 to 2035–2044, ensemble mean, SSP2-4.5 |
 | NASA GRACE / GRACE-FO data-assimilation drought indicator (rasters hosted by NDMC) | Groundwater wetness percentile: latest week and a 10-year average |
 | NASA SRTM 30 m elevation (through OpenTopoData) | Slope |
+| NASA MODIS MOD13Q1 vegetation indices, 250 m, every 16 days (through Microsoft Planetary Computer, with NASA's ORNL DAAC as fallback) | Peak greenness (NDVI) each year, its ten-year trend, and greenness in dry seasons against other years |
 
 ## Other data and references
 
@@ -157,8 +158,9 @@ We list these in the app and the README, because a farmer should know them.
 - **Our own judgment calls,** which need an agronomist's review: each crop's
   functional group and residue class, the "three or more groups" threshold,
   and the soil texture cut-offs.
-- **Two planned criteria are missing:** satellite greenness trend and
-  greenness drop in dry years (MODIS).
+- **Greenness is one 250 m pixel.** Near a field edge it mixes two fields,
+  and the crop grown changes the peak, so the trend is not soil health on its
+  own.
 
 ## What we tried and dropped
 
@@ -192,7 +194,7 @@ video or audio are used.
 ## What's next
 
 - A profit view from real price and yield data.
-- Greenness history per field from MODIS or HLS.
+- Sharper greenness per field from HLS (30 m), and SMAP soil moisture.
 - Agronomist review of the crop labels and thresholds.
 - Growing seasons for the Southern Hemisphere and the tropics.
 - A printable one-page card for each field.

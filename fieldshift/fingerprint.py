@@ -14,7 +14,8 @@ Sources (none needs a key or login):
     ISRIC SoilGrids v2.0 (map server, point API as fallback) -> 16-18
     USDA Cropland Data Layer (USDA NASS image server, CropScape as
     fallback)                                -> 19 (contiguous US only)
-Not wired (see README): 12-13 (MODIS greenness).
+    NASA MODIS MOD13Q1 NDVI (Planetary Computer copy, NASA ORNL DAAC point
+    service as fallback)                     -> 12-13
 """
 from __future__ import annotations
 
@@ -39,6 +40,10 @@ ELEVATION_URL = "https://api.opentopodata.org/v1/srtm30m"
 CDL_URL = "https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLValue"
 CDL_USDA_URL = "https://pdi.scinet.usda.gov/image/rest/services/CDL_WM/ImageServer"
 SOILGRIDS_WCS = "https://maps.isric.org/mapserv"
+MODIS_ORNL_URL = "https://modis.ornl.gov/rst/api/v1/MOD13Q1/subset"
+PC_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1/search"
+PC_POINT_URL = "https://planetarycomputer.microsoft.com/api/data/v1/item/point/{lon},{lat}"
+PC_MODIS = "modis-13Q1-061"
 
 START_YEAR, END_YEAR = 2015, 2024
 # ASSUMPTION: Northern Hemisphere growing season, April-September.
@@ -53,6 +58,10 @@ FUTURE_START, FUTURE_END = 2035, 2044   # ten years centred on 2040
 GRACE_YEARS = 10                     # one weekly map per year, same week of year
 SLOPE_STEP_M = 90.0                  # spacing of the 3x3 elevation grid
 CDL_YEARS = 5
+# MODIS 16-day composites starting on these days of the year (23 April to
+# 14 September): ten per year, wide enough to catch winter wheat and corn peaks
+NDVI_FIRST_DOY, NDVI_LAST_DOY = 113, 257
+NDVI_MIN_COMPOSITES = 3              # usable composites needed to count a year
 
 
 def _first_working(*attempts):
@@ -393,6 +402,100 @@ def crop_sequence_criteria(lat: float, lon: float) -> dict:
     return {"c19_crop_sequence": {yr: seq[yr] for yr in sorted(seq)[-CDL_YEARS:]}}
 
 
+# ------------------------------------------------------- greenness (12-13)
+NDVI_BAND, QA_BAND = "250m_16_days_NDVI", "250m_16_days_pixel_reliability"
+
+
+def _ndvi_ornl(lat: float, lon: float) -> dict:
+    """{year: [(ndvi, reliability), ...]} from NASA's ORNL DAAC point service."""
+    def one(job):
+        year, band = job
+        r = requests.get(MODIS_ORNL_URL, timeout=20, params={
+            "latitude": lat, "longitude": lon, "band": band,
+            "startDate": f"A{year}{NDVI_FIRST_DOY:03d}", "endDate": f"A{year}{NDVI_LAST_DOY:03d}",
+            "kmAboveBelow": 0, "kmLeftRight": 0})
+        r.raise_for_status()
+        return {row["modis_date"]: row["data"][0] for row in r.json()["subset"]}
+
+    years = range(START_YEAR, END_YEAR + 1)
+    jobs = [(y, band) for y in years for band in (NDVI_BAND, QA_BAND)]
+    with ThreadPoolExecutor(10) as ex:
+        got = dict(zip(jobs, ex.map(one, jobs)))
+    return {y: [(got[(y, NDVI_BAND)][d], got[(y, QA_BAND)].get(d))
+                for d in sorted(got[(y, NDVI_BAND)])] for y in years}
+
+
+def _ndvi_planetary_computer(lat: float, lon: float) -> dict:
+    """The same MODIS product read through Microsoft Planetary Computer."""
+    def items(year):
+        r = requests.post(PC_STAC_URL, timeout=30, json={
+            "collections": [PC_MODIS], "limit": 100,
+            "intersects": {"type": "Point", "coordinates": [lon, lat]},
+            "datetime": f"{year}-04-01T00:00:00Z/{year}-09-30T23:59:59Z",
+            "fields": {"include": ["id"], "exclude": ["assets", "links", "geometry", "bbox"]}})
+        r.raise_for_status()
+        out = []
+        for f in r.json()["features"]:
+            name = f["id"]                     # MOD13Q1.A2023177.h11v04...
+            if name.startswith("MOD13Q1.A") and \
+                    NDVI_FIRST_DOY <= int(name[13:16]) <= NDVI_LAST_DOY:
+                out.append((year, name))
+        return out
+
+    def point(job):
+        year, item = job
+        r = requests.get(PC_POINT_URL.format(lon=lon, lat=lat), timeout=30, params=[
+            ("collection", PC_MODIS), ("item", item), ("assets", NDVI_BAND), ("assets", QA_BAND)])
+        r.raise_for_status()
+        ndvi, quality = r.json()["values"][:2]
+        return year, (ndvi, quality)
+
+    years = range(START_YEAR, END_YEAR + 1)
+    with ThreadPoolExecutor(10) as ex:
+        jobs = [job for found in ex.map(items, years) for job in found]
+    with ThreadPoolExecutor(12) as ex:
+        results = list(ex.map(point, jobs))
+    return {y: [v for yr, v in results if yr == y] for y in years}
+
+
+def greenness_criteria(lat: float, lon: float) -> dict:
+    """Peak growing-season greenness (NDVI) per year for the 250 m pixel at the pin.
+
+    Peak = the highest NDVI among that year's usable 16-day composites between late
+    April and mid September. A composite is usable when MODIS flags it good or
+    marginal (not snow or cloud). The trend is a straight-line fit through the yearly
+    peaks. The crop grown changes the peak too, so the trend is not soil health alone.
+    """
+    # Planetary Computer answers in seconds; NASA's ORNL service can take a minute
+    raw = _first_working(("Planetary Computer", lambda: _ndvi_planetary_computer(lat, lon)),
+                         ("NASA ORNL MODIS service", lambda: _ndvi_ornl(lat, lon)))
+    peaks = {}
+    for year, rows in raw.items():
+        good = [v * 0.0001 for v, q in rows
+                if v is not None and v > -2000 and q is not None and int(q) in (0, 1)]
+        if len(good) >= NDVI_MIN_COMPOSITES:
+            peaks[year] = round(max(good), 3)
+    if len(peaks) < 5:
+        return {"c12_peak_ndvi_mean": None, "c12_greenness_trend_per_decade": None,
+                "_peak_ndvi_by_year": peaks}
+    xs, ys = list(peaks), list(peaks.values())
+    mx, my = statistics.mean(xs), statistics.mean(ys)
+    slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+    return {"c12_peak_ndvi_mean": round(my, 2),
+            "c12_greenness_trend_per_decade": round(slope * 10, 3),
+            "_peak_ndvi_by_year": peaks}
+
+
+def greenness_in_dry_years(criteria: dict):
+    """Mean peak NDVI in dry seasons minus the mean in the other years (criterion 13)."""
+    peaks = criteria.get("_peak_ndvi_by_year") or {}
+    dry = [peaks[y] for y in criteria.get("c09_dry_years") or [] if y in peaks]
+    rest = [v for y, v in peaks.items() if y not in (criteria.get("c09_dry_years") or [])]
+    if not dry or len(rest) < 2:
+        return None
+    return round(statistics.mean(dry) - statistics.mean(rest), 3)
+
+
 # ---------------------------------------------------------------- assemble
 # Successful fetches are kept in memory per source and location, so a retry
 # after one service fails only asks that service again.
@@ -413,6 +516,7 @@ def fingerprint(lat: float, lon: float) -> dict:
         ("NEX-GDDP-CMIP6 projection", lambda: projection_criteria(lat, lon)),
         ("SoilGrids", lambda: soil_criteria(lat, lon)),
         ("USDA crop sequence", lambda: crop_sequence_criteria(lat, lon)),
+        ("MODIS greenness", lambda: greenness_criteria(lat, lon)),
     )
 
     def run(source):
@@ -435,6 +539,8 @@ def fingerprint(lat: float, lon: float) -> dict:
         result["criteria"].update(values)
         if error:
             result["notes"].append(f"{name} unavailable: {error}")
+    # criterion 13 needs two sources: dry seasons (weather) and greenness (MODIS)
+    result["criteria"]["c13_greenness_drop_dry_years"] = greenness_in_dry_years(result["criteria"])
     return result
 
 

@@ -42,8 +42,8 @@
 | 9 | Dry years in the last 10 | NASA POWER | done |
 | 10 | Groundwater wetness percentile, latest week and 10-year average | NASA GRACE / GRACE-FO drought indicator ([NDMC](https://nasagrace.unl.edu/)) | done |
 | 11 | Slope | NASA SRTM 30 m via [OpenTopoData](https://www.opentopodata.org/) | done |
-| 12 | Field greenness trend | NASA MODIS / HLS | not wired (see limits) |
-| 13 | Greenness drop in dry years | NASA MODIS / HLS | not wired (see limits) |
+| 12 | Peak greenness (NDVI): 10-year average and trend | NASA MODIS MOD13Q1, 250 m | done |
+| 13 | Greenness in dry seasons against other years | NASA MODIS and NASA POWER | done |
 | 14 | Projected 2040 temperature change | NASA NEX-GDDP-CMIP6 (POWER projection API) | done (US sites) |
 | 15 | Projected 2040 rainfall change | NASA NEX-GDDP-CMIP6 (POWER projection API) | done (US sites) |
 | 16 | Soil texture (clay, sand) | ISRIC SoilGrids | done |
@@ -179,21 +179,25 @@ averaged), soil health and water saving, using the farmer's weights.
 - **Soil** is read from the ISRIC map server, with the SoilGrids point API as
   a fallback (that API often times out). If a source fails, the app shows the
   value as missing and offers a retry.
-- **Greenness (12–13) is not wired.** The NASA ORNL MODIS point service timed
-  out on every attempt, and the alternative needs heavy raster libraries.
+- **Greenness (12–13)** is the yearly peak NDVI of one 250 m MODIS pixel,
+  from good-quality 16-day composites between late April and mid September.
+  A pin near a field edge mixes two fields, and the crop grown changes the
+  peak, so the trend is not soil health on its own. It is read from the
+  Planetary Computer copy of MOD13Q1 (seconds), with NASA's ORNL DAAC point
+  service as a fallback (it can take a minute). Shown, not scored.
 
 ## Milestones
 
 1. ~~Location → criteria → ranked rotations with reasons, in the terminal.~~ Done.
 2. ~~Web app: map pin, criteria panel with overrides, priority sliders,
    recommendation cards.~~ Done (Streamlit, `app.py`).
-3. ~~Remaining criteria and the 2040 view.~~ Done except MODIS greenness (12–13).
+3. ~~Remaining criteria and the 2040 view.~~ Done.
 4. Pitch video and submission.
 
 ## Task split (three roles — claim one)
 
 **Role A — Data**
-- Remaining: greenness trend (12–13). Everything else is wired.
+- All 20 criteria are wired. Next: SMAP soil moisture in place of the MERRA-2 estimate.
 - Make each criterion fail safely: missing stays missing.
 
 **Role B — Recommendation engine**
@@ -222,7 +226,7 @@ cover crops improve drought resilience everywhere.
 ## Data sources
 
 - [NASA POWER](https://power.larc.nasa.gov/) — daily weather and solar
-- [NASA MODIS](https://modis.gsfc.nasa.gov/) / [HLS](https://www.earthdata.nasa.gov/data/projects/hls) — vegetation greenness
+- [NASA MODIS MOD13Q1](https://lpdaac.usgs.gov/products/mod13q1v061/) — vegetation greenness (NDVI), read through [Planetary Computer](https://planetarycomputer.microsoft.com/dataset/modis-13Q1-061) or the [ORNL DAAC](https://modis.ornl.gov/data/modis_webservice.html)
 - [NASA SMAP](https://smap.jpl.nasa.gov/) — soil moisture
 - [NASA GRACE-FO](https://gracefo.jpl.nasa.gov/) — groundwater, via the [GRACE drought indicator rasters](https://nasagrace.unl.edu/)
 - [NASA SRTM](https://www.earthdata.nasa.gov/data/instruments/srtm) — elevation, for slope

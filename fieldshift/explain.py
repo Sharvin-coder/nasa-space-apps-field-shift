@@ -49,10 +49,13 @@ GLOSSARY = [
      "pH ranges (FAO EcoCrop) match this location. It is 1 inside the crop's optimal "
      "range, 0 outside its absolute range, and a straight line in between. It is not a "
      "yield estimate."),
-    ("Vegetation index (NDVI, EVI)",
-     "A satellite measure of how green and dense the plant cover is, often used to spot "
-     "crop stress or bare-field periods. Field Shift does not use one yet: the two "
-     "greenness rows on this page are marked as not wired."),
+    ("Greenness (NDVI)",
+     "The Normalized Difference Vegetation Index: a satellite measure, from about 0 for "
+     "bare soil to about 0.9 for a dense green canopy, of how much healthy leaf covers the "
+     "ground. We read NASA's MODIS satellite for the 250 m pixel under the pin and take "
+     "each year's peak between late April and mid September, skipping cloudy or snowy "
+     "readings. A lower peak in a dry season is a sign the crop was stressed. The crop "
+     "grown also changes the peak, so compare like with like."),
 ]
 
 # (crop trait, what the standard says, whether Field Shift scores it)
@@ -93,6 +96,7 @@ RESOLUTIONS = [
     ("NASA NEX-GDDP-CMIP6", "projected temperature and rain change", "about 25 km",
      "daily, model ensemble"),
     ("NASA GRACE / GRACE-FO", "groundwater wetness percentile", "about 25 km", "weekly"),
+    ("NASA MODIS (MOD13Q1)", "greenness (NDVI)", "250 m", "every 16 days"),
     ("ISRIC SoilGrids", "clay, sand, organic carbon, pH", "250 m", "one map"),
     ("NASA SRTM", "elevation, for slope", "30 m", "one map"),
     ("USDA Cropland Data Layer", "crop grown each year", "10 to 30 m", "yearly"),
