@@ -1524,7 +1524,6 @@ def fine_print(divider: str) -> None:
     <nav aria-label="More about Field Shift">
     <a href="{REPO_URL}#readme" target="_blank" rel="noopener">Methodology</a>
     <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">NASA POWER</a>
-    <a href="{REPO_URL}" target="_blank" rel="noopener">Source code</a>
     </nav>
     </footer>
     </section>
@@ -1554,7 +1553,6 @@ with sky:
 <span class="mast-tag">NASA Space Apps Challenge 2026</span>
 <nav class="mast-nav" aria-label="About this tool">
 <a href="#fine-print">How it scores</a>
-<a href="{REPO_URL}" target="_blank" rel="noopener">Source code</a>
 </nav>
 </header>
 <div class="hero">
